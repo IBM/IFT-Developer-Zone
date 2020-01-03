@@ -1,0 +1,109 @@
+openapi: "3.0.0"
+info:
+  version: 2.0.0
+  title: IFT Recall Assistant APIs
+  description: |
+    # Authorization to use the IFT Recall Assistant API
+    The IFT Recall Assistant APIs allow callers to determine the impact of a recall, specifying a location where a recall is initiated from, a list of GTINs harvested at that location, and a date range for harvest.
+    
+    Given that information, there are endpoints to determine:
+    * EPCs harvested
+    * EPCs impacted (including products with harvested EPCs as ingredients)
+    * Purchase orders and Despatch advice IDs associated with shipments of any impacted EPCs
+    
+    # Authorization to use the IFT Recall Assistant API
+    
+    Only authorized users with a <b>registered IBMid</b> can make IBM Food Trust&trade; API calls. If necessary, contact your IBM Food Trust Organization Administrator for authorization to use this API. 
+    
+    Authenticate with your registered IBMid, as follows:
+    
+    1. Open the [IBM Blockchain Solution Manager](https://food.ibm.com/ift/api/identity-proxy/login) page in a new tab or window.
+    2. Log in with your IBMid, and if necessary, select your Organization.
+    3. Click **Copy** to copy the User Token.
+    4. Return to this page and click the green **Authorize** button on the lower right.
+    5. In the **Available authorizations** dialog, paste your copied User Token into the **Value** field. 
+    6. Click **Authorize** and **Close**.
+    
+    You are now authorized to use this API. For subsequent sessions, repeat the steps above to obtain a new User Token.
+
+servers:
+  - url: '/ift/api-samples/recall-assistant/v1'
+
+paths:
+  /harvested-epcs:
+    get:
+      summary: Return EPCs that we harvested with the matching criteria
+      parameters:
+        - $ref: '#/components/parameters/locationId'
+        - $ref: '#/components/parameters/productId'
+        - $ref: '#/components/parameters/eventStartTimestamp'
+        - $ref: '#/components/parameters/eventEndTimestamp'
+      responses:
+        '200':
+          description: OK
+
+  /impacted-epcs:
+    get:
+      summary: Return EPCs that contain any of the the matching data as ingredients
+      parameters:
+        - $ref: '#/components/parameters/locationId'
+        - $ref: '#/components/parameters/productId'
+        - $ref: '#/components/parameters/eventStartTimestamp'
+        - $ref: '#/components/parameters/eventEndTimestamp'
+      responses:
+        '200':
+          description: OK
+
+  /impacted-transactions:
+    get:
+      summary: Return transactions (POs and DAs) that contain impacted EPCs
+      parameters:
+        - $ref: '#/components/parameters/locationId'
+        - $ref: '#/components/parameters/productId'
+        - $ref: '#/components/parameters/eventStartTimestamp'
+        - $ref: '#/components/parameters/eventEndTimestamp'
+      responses:
+        '200':
+          description: OK
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    productId:
+      name: product_id[]
+      in: query
+      description: restrict results to any of the GS1 GTINs (numeric) or IBM Food Trust Product Identifiers (URN) provided. maximum number of items is 30
+      schema:
+        $ref: '#/components/schemas/productId'
+    locationId:
+      name: location_id[]
+      in: query
+      description: restrict results to the specified GS1 GLN (numeric) or IBM Food Trust Location Identifier (URN) provided.
+      schema:
+        $ref: '#/components/schemas/string'
+    eventStartTimestamp:
+      name: event_start_timestamp
+      in: query
+      description: restrict results to records with an event timestamp on or after the timestamp (ISO 8601) provided, eg. 2019-11-15
+      schema:
+        $ref: '#/components/schemas/string'
+    eventEndTimestamp:
+      name: event_end_timestamp
+      in: query
+      description: restrict results to records with an event timestamp strictly before the timestamp (ISO 8601) provided, eg. 2019-11-30
+      schema:
+        $ref: '#/components/schemas/string'
+  schemas:
+    productId:
+      type: array
+      items:
+        type: string
+    string:
+      type: string
+      
+security:
+  - bearerAuth: []

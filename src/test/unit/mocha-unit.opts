@@ -1,0 +1,5 @@
+--compilers ts:ts-node/register
+--require source-map-support/register
+--watch-extensions ts,tsx
+src/test/unit/**/*.test.ts
+src/test/unit/**/*.test.tsx

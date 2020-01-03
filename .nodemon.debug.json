@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "src",
+    "static",
+    "config"
+  ],
+  "ext": "ts,yaml,json",
+  "ignore": [
+    "src/**/*.spec.ts"
+  ],
+  "exec": "node --max-http-header-size=32768 --inspect -r ts-node/register src/app.ts"
+}

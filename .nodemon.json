@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "src",
+    "static",
+    "config"
+  ],
+  "ext": "ts,yaml,json",
+  "ignore": [
+    "src/**/*.spec.ts"
+  ],
+  "exec": "ts-node --cache-directory tmp/ src/app.ts"
+}

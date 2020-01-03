@@ -1,0 +1,26 @@
+# build assets folder
+bin/
+
+# used for ts-node javascript cache
+tmp/
+.v8flags.*
+
+# various IDE/editor things
+.idea
+
+# standard universal ignores
+*.log
+*.pyc
+.DS_Store
+
+# standard node ignores
+node_modules
+yarn.lock
+
+# nyc istanbul coverage
+coverage/
+.nyc_output/
+.history/
+
+# Used for local docker builds
+.npmrc

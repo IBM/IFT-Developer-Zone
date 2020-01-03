@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "module": "none",
+    "target": "ES2016",
+    "lib": [
+      "es2016"
+    ],
+    "noImplicitAny": false,
+    "sourceMap": true,
+    "moduleResolution": "node",
+    "outDir": "bin",
+    "typeRoots": [
+      "node_modules/@types"
+    ],
+    "baseUrl": "."
+  },
+  "include": [
+    "typings.d.ts",
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "test"
+  ]
+}
