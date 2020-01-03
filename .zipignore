@@ -1,0 +1,16 @@
+.npmrc
+.cfignore
+coverage/*
+.nyc_output/*
+tmp/*
+*.DS_Store
+README.md
+.github/*
+.git/*
+.gitignore
+logs
+*.log
+keyValStore*
+simulation/*
+scripts/*
+src/*
