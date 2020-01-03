@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch server",
+      "program": "${workspaceRoot}/src/app.ts",
+      "outFiles": [
+        "${workspaceRoot}/bin/**/*.js"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "openOnSessionStart",
+      "cwd": "${workspaceRoot}"
+    }
+  ]
+}
