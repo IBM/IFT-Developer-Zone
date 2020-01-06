@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "IBM Food Trust Developer Zone API Examples",
   "author": "IBM",
+  "license": "Apache-2.0",
   "engines": {
     "node": "8.9.*"
   },
@@ -71,8 +72,7 @@
     "tslint": "^5.8.0",
     "tslint-config-airbnb": "5.10.0",
     "typemoq": "^1.8.0",
-    "typescript": "^2.6.1",
-    "typings": "^2.1.1"
+    "typescript": "^2.6.1"
   },
   "nyc": {
     "extension": [
