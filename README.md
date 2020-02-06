@@ -17,3 +17,11 @@ This returns a list of EPCs that contain ingredients harvested from a particular
 
 ### impacted-transactions
 This returns a list of transaction identifiers (purchase order IDs and despatch advice IDs) that contain ingredients that were harvested from a particular location within a particular timeframe, for a set of GTINs.  This assumes that the harvested EPCs were transformed directly into other EPCs (or were never transformed), and does not attempt to handle multiple layers of transformation, or aggregations into transformations.  It also assumes that the impacted EPCs are shipped to a partner as a child of an aggregation event and that the transaction IDs are referenced on that event.
+
+# Usage
+1) Clone the code locally
+2) Nagigate to the top level, and execute:
+   - npm install
+   - npm run build
+   - npm run start
+3) From your browser, open http://localhost:5474/ift/api-samples/recall-assistant/v1/swagger/
