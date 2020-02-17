@@ -1,15 +1,3 @@
-/*
- * IBM Confidential
- * OCO Source Materials
- * 5900-A1Y
- *
- * © Copyright IBM Corp. 2018, 2019
- *
- * The source code for this program is not published or
- * otherwise divested of its trade secrets, irrespective of
- * what has been deposited with the U.S. Copyright Office.
- */
-
 import * as express from 'express';
 import * as swaggerUi from 'swagger-ui-express';
 import * as http from 'http';
