@@ -99,22 +99,8 @@ export async function getTransformOutputEpcs(req, inputEpcs: string[]) {
     }
   }
 
-  return Promise.all(eventsPromiseList).then((eventResponse: any) => {
-    // Get a list of all EPCs listed as outputs on these tranformations
-    let epcs: string[] = [];
-    eventResponse.forEach((response) => {
-      const eventsObj = JSON.parse(response);
-      eventsObj.events.forEach((event) => {
-        event.output_quantities.forEach((output) => {
-          epcs = _.union(epcs, [output.epc_id]);
-        });
-      });
-    });
-    return epcs;
-  }).catch((err) => {
-    console.error(`Error getting EPCs from relevant events: ${err}`);
-    throw err;
-  });
+  const epcs = await processPromiseList(eventsPromiseList, 'transformation');
+  return epcs;
 }
 
 // Find all aggregations where the input EPCs are children, and return referenced transactions
@@ -159,20 +145,32 @@ export async function getTransactions(req, inputEpcs: string[]) {
     }
   }
 
-  return Promise.all(eventsPromiseList).then((eventResponse: any) => {
-    let transactionIds: string[] = [];
+  const transactionIds = await processPromiseList(eventsPromiseList, 'aggregation');
+  return transactionIds;
+}
+
+export async function processPromiseList(promiseList: string[], eventType: string) {
+  return Promise.all(promiseList).then((eventResponse: any) => {
+    let ids: string[] = []; // Get a list of all EPCs listed as outputs on these tranformations or transactionIds
     eventResponse.forEach((response) => {
       const eventsObj = JSON.parse(response);
       eventsObj.events.forEach((event) => {
-        // Loop through transactions on each event to get ids
-        event.transaction_ids.forEach((transaction) => {
-          transactionIds = _.union(transactionIds, [transaction.id]);
-        });
+        if (eventType === 'aggregation') {
+          // Loop through transactions on each event to get ids
+          event.transaction_ids.forEach((transaction) => {
+            ids = [...ids, transaction.id];
+          });
+        } else if (eventType === 'transformation') {
+          event.output_quantities.forEach((output) => {
+            ids = [...ids, output.epc_id];
+          });
+        }
       });
     });
-    return transactionIds;
+    return (ids && ids.length) > 0 ? _.uniq(ids) : [];
   }).catch((err) => {
     console.error(`Error getting EPCs from relevant events: ${err}`);
     throw err;
   });
+
 }
