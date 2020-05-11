@@ -2,6 +2,7 @@ import * as express from 'express';
 import * as _ from 'lodash';
 
 import { getEpcs, getTransformOutputEpcs, getTransactions } from './ift-service';
+import { getSourceEPCData } from './retailer-actions';
 
 // Catch errors that occur in asynchronous code and pass them to Express for processing
 export const catchAsync = fn => (...args) => fn(...args).catch(args[2]); // args[2] is next
@@ -38,4 +39,14 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
   // From the list of bad EPCs (harvested or produced), find aggregations that reference transactions
   // (purchase orders and despatch advice documents)
   return res.status(200).json(await getTransactions(req, totalEpcs));
+});
+
+// controller to get the commissioned (most upstream) epc's
+export const getCommissionedEpcsHandler: express.RequestHandler = catchAsync(async (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  // This will get all the commisoned input epcs and related data
+  return res.status(200).json(await getSourceEPCData(req));
 });

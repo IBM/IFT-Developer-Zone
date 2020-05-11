@@ -66,6 +66,17 @@ paths:
         '200':
           description: OK
 
+  /commissioned-epcs:
+    get:
+      summary: Return EPCs that were used in the transformation on the searched product
+      parameters:
+        - $ref: '#/components/parameters/productId'
+        - $ref: '#/components/parameters/eventStartTimestamp'
+        - $ref: '#/components/parameters/eventEndTimestamp'
+      responses:
+        '200':
+          description: OK
+
 components:
   securitySchemes:
     bearerAuth:
