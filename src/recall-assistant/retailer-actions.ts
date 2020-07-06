@@ -53,9 +53,9 @@ export async function getSourceEPCData(req) {
   // TODO: change the handling to handle a large number of trace calls
   // If the number of lots and serials are greater than 50 (for the moment), ask the user to narrow the
   // search using the date filters
-  if (lotsAndSerials.length > 50) {
+  if (lotsAndSerials && lotsAndSerials.length > 50) {
     return('Dataset returned is too large. Try narrowing your search using the date filters.');
-  }
+  } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [];
 
   // 2) trace upstream on all epcs from step 1
   const traceData = await ift_service.runTrace(req, lotsAndSerials, true);
@@ -63,13 +63,13 @@ export async function getSourceEPCData(req) {
   // 3) Extract all the assestIDs from all the trace results
   const epcTraceMap = new Map();
   let assets = [];
-  if (traceData.length > 0) {
+  if (traceData && traceData.length > 0) {
     traceData.forEach(setOfEvents => {
       const traceMap = ift_service.getEpcEventsMapFromTrace(setOfEvents);
       epcTraceMap.set(setOfEvents.epc_id, traceMap);
       assets.push(...getAssetList(traceMap));
     });
-  }
+  } else { return []; }
   assets = [...new Set(assets)]; // unique array of asset ids
 
   // 4) get all the events for the assetId's from step 3, where event is aggregation/observation &
@@ -147,8 +147,8 @@ export function formatOutput(epcTraceMap) {
           return (product.org_id === orgId);
         });
       }
-      prodInfo.productGtin = productData && productData.id || products[0].id;
-      prodInfo.productName = productData && productData.description || products[0].description;
+      prodInfo.productGtin = (productData && productData.id) || (products[0] && products[0].id);
+      prodInfo.productName = (productData && productData.description) || (products[0] && products[0].description);
     }
     prodInfo.eventInfo = eventArr;
     eachTraceOutput.productTraced = prodInfo;
@@ -175,8 +175,8 @@ export function formatOutput(epcTraceMap) {
             return (product.org_id === inputEventOrgId);
           });
         }
-        inputProdInfo.productGtin = inputPData && inputPData.id || inputProducts[0].id;
-        inputProdInfo.productName = inputPData && inputPData.description || inputProducts[0].description;
+        inputProdInfo.productGtin = (inputPData && inputPData.id) || (inputProducts[0] && inputProducts[0].id);
+        inputProdInfo.productName = (inputPData && inputPData.description) || (inputProducts[0] && inputProducts[0].description);
       }
 
       inputProdInfo.eventInfo = inputEventArr;
@@ -314,15 +314,49 @@ function getFormattedEventsArray(eventList) {
     if (eventInfo) {
       orgId =  eventInfo.org_id;
       // Get the shipping and transaction info
-      eventArr.push({
-        bizStep: eventInfo.biz_step,
-        eventDate: eventInfo.event_time,
-        eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
-        sourceLocation: getLocationInfo(eventInfo.source_location_ids),
-        destinationLocation: getLocationInfo(eventInfo.destination_location_ids),
-        transactions: getTransactionInfo(eventInfo.transaction_ids)
-      });
+      if (eventInfo.event_type === "commission") { // If commission, display only source location, else display
+        eventArr.push({
+          bizStep: eventInfo.biz_step,
+          eventDate: eventInfo.event_time,
+          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          sourceLocation: getLocationInfo(eventInfo.source_location_ids),
+          transactions: getTransactionInfo(eventInfo.transaction_ids)
+        });
+      } else if (!locationEquals(eventInfo.source_location_ids, eventInfo.destination_location_ids)) {
+        eventArr.push({
+          bizStep: eventInfo.biz_step,
+          eventDate: eventInfo.event_time,
+          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          sourceLocation: getLocationInfo(eventInfo.source_location_ids),
+          destinationLocation: getLocationInfo(eventInfo.destination_location_ids),
+          transactions: getTransactionInfo(eventInfo.transaction_ids)
+        });
+      }
     }
   });
   return [eventArr, orgId];
+}
+
+/**
+ * Checks equality for two arrays of location ids
+ * 
+ * uses sets: if number of locations is high and order is irrelevant
+ * then set logic will be faster
+ * 
+ * @param a First array
+ * @param b Second array
+ */
+function locationEquals(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  if (a.length !== b.length) return false;
+
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+
+  for (let item of aSet) if (!bSet.has(item)) return false;
+
+  return true;
+
 }

@@ -185,7 +185,9 @@ export async function processPromiseList(promiseList: string[], eventType: strin
         }
       });
     });
-    return (ids && ids.length) > 0 ? _.uniq(ids) : [];
+    return (ids && ids.length > 0) ? _.uniq(ids) : [];
+    // NOTE: Works but might be (ids && ids.length > 0) or even just (ids && ids.length).
+    // NOTE: Modified for more clarity
   }).catch((err) => {
     console.error(`Error getting EPCs from relevant events: ${err}`);
     throw err;
@@ -253,8 +255,9 @@ export async function getEvents(req, inputAssetIds: string[], bizStep?: string[]
         ? `&biz_step[]=${bizStep.join('&biz_step[]=')}` : ''}`;
       // filter by event_end_timestamp so that you dont get events past the date searched for
       // const eventEndTimeParams = getTraceRestraintParameters('', [], '', req.query.event_end_timestamp);
+      // Since we want to filter by commission time, no need to filter by event_end_timestamp here
       const eventEndTimeParams = '';
-      const eventCallUri = `${config.ift_url}/events?event_type[]=aggregation&event_type[]=observation${
+      const eventCallUri = `${config.ift_url}/events?event_type[]=aggregation&event_type[]=commission&event_type[]=observation${
         eventCallUriParamWithAssets}${eventBizStep}${eventEndTimeParams}`;
       console.info(`Trace call to get all events from asset ids: ${eventCallUri}`);
 
@@ -307,6 +310,7 @@ export async function runTrace(req, inputEPCs: string[], upstream = false, downs
         const traceObj = JSON.parse(response);
         traceResults.push(traceObj.trace);
       });
+      // console.log("TRACE COMPLETED:", traceResults)
       return traceResults;
     }).catch((err) => {
       console.error(`Error tracing on epcs: ${err}`);
@@ -412,7 +416,7 @@ export function getEpcEventsMapFromTrace(traceResponse): {} {
     epc_id : traceResponse.epc_id,
     // events: traceResponse.events
     events: traceResponse.events.filter((event) => {
-      return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation'));
+      return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
     })
   };
   epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
@@ -435,7 +439,7 @@ export function getUpstreamEventsAndEPCs(epcs) {
         epc_id : epc.epc_id,
         // events: epc.events
         events: epc.events.filter((event) => {
-          return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation'));
+          return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
         })
       });
     }
