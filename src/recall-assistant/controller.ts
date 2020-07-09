@@ -41,7 +41,7 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
   return res.status(200).json(await getTransactions(req, totalEpcs));
 });
 
-// controller to get the commissioned (most upstream) epc's
+// controller to get the commissioned (most upstream) EPCs
 export const getCommissionedEpcsHandler: express.RequestHandler = catchAsync(async (
   req: express.Request,
   res: express.Response,
