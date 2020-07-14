@@ -1,11 +1,11 @@
 // Test Libraries
 import { expect } from 'chai';
-import { getTraceRestraintParameters } from '../../../recall-assistant/ift-service';
+import { getTraceConstraintParameters } from '../../../recall-assistant/ift-service';
 
-describe('Testing getTraceRestraintParameters', function () {
+describe('Testing getTraceConstraintParameters', function () {
   describe('ensure correct url creation', function () {
     it('should show correct URL for commission case', async function () {
-      const urlRestraintParameters = getTraceRestraintParameters('urn:ibm:ift:location:loc:prefix.identifier',
+      const urlRestraintParameters = getTraceConstraintParameters('urn:ibm:ift:location:loc:prefix.identifier',
         ['gtin1', 'gtin2'],
         '2019-11-01',
         '2019-11-15');

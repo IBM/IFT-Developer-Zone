@@ -58,7 +58,7 @@ export async function getSourceEPCData(req) {
   } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [];
 
   // 2) trace upstream on all epcs from step 1
-  const traceData = await ift_service.runTrace(req, lotsAndSerials, true);
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, {upstream: true, downstream:false});
 
   // 3) Extract all the assestIDs from all the trace results
   const epcTraceMap = new Map();
