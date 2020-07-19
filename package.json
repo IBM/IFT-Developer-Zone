@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "express": "^4.16.2",
-    "lodash": "^4.6.2",
+    "lodash": "^4.17.19",
     "request": "^2.83.0",
     "request-promise-native": "^1.0.7",
     "swagger-ui-express": "^4.0.1"
