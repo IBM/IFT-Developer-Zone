@@ -290,7 +290,7 @@ function getTransactionInfo(transactions) {
   return transArray;
 }
 
-function getProductFromEpc(epc: string) {
+export function getProductFromEpc(epc: string) {
   let product;
   if (epc && ((epc.indexOf(ift_service.constants.URN_GS1_SGTIN) >= 0) ||
     (epc.indexOf(ift_service.constants.URN_IFT_SGTIN) >= 0) ||

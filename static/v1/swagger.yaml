@@ -66,13 +66,14 @@ paths:
         '200':
           description: OK
 
-  /commissioned-epcs:
+  /ingredient-sources:
     get:
       summary: Return EPCs that were used in the transformation on the searched product
       parameters:
         - $ref: '#/components/parameters/productId'
         - $ref: '#/components/parameters/eventStartTimestamp'
         - $ref: '#/components/parameters/eventEndTimestamp'
+        - $ref: '#/components/parameters/output'
       responses:
         '200':
           description: OK
@@ -106,6 +107,12 @@ components:
       name: event_end_timestamp
       in: query
       description: restrict results to records with an event timestamp strictly before the timestamp (ISO 8601) provided, eg. 2019-11-30
+      schema:
+        $ref: '#/components/schemas/string'
+    output:
+      name: output
+      in: query
+      description: format of the output. Only "JSON" and "CSV" are provided. The default is "JSON"
       schema:
         $ref: '#/components/schemas/string'
   schemas:

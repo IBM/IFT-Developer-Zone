@@ -244,7 +244,7 @@ export async function getProductLotsAndSerials(req) {
 
 // Get all the aggregation/observation events for given lots and serials
 // TODO: make it more generic to support other types
-export async function getEvents(req, inputAssetIds: string[], bizSteps?: string[]) {
+export async function getEvents(req, inputAssetIds: string[], eventTypes:string[]=["commission", "aggregation", "observation"], bizSteps?: string[]) {
   const eventsList = [];
   const options = {
     headers: {
@@ -269,7 +269,7 @@ export async function getEvents(req, inputAssetIds: string[], bizSteps?: string[
       // const eventEndTimeParams = getTraceConstraintParameters('', [], '', req.query.event_end_timestamp);
       // Since we want to filter by commission time, no need to filter by event_end_timestamp here
       const eventEndTimeParams = '';
-      const eventCallUri = `${config.ift_url}/events?event_type[]=aggregation&event_type[]=commission&event_type[]=observation${
+      const eventCallUri = `${config.ift_url}/events?${(!(!!eventTypes && eventTypes.length > 0)) ? "":`event_type[]=${eventTypes.join("&event_type[]=")}`}${
         eventCallUriParamWithAssets}${eventBizStep}${eventEndTimeParams}`;
       console.info(`Trace call to get all events from asset ids: ${eventCallUri}`);
 
@@ -350,7 +350,7 @@ export async function getLocationsData(req, locationIds: any[]) {
     }));
   }
   
-  return locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(!!locations && locations.length > 0)) ? []:locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 /**
@@ -382,7 +382,7 @@ export async function getProductsData(req, productIds) {
       return productUri;
     }));
   }
-  return products.map((responseJSON) => responseJSON.products).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(!!products && products.length > 0)) ? []: products.map((responseJSON) => responseJSON.products).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 // Method to get all the epcEvent mapping from the traced response

@@ -4,6 +4,8 @@ import * as _ from 'lodash';
 import { getEpcs, getTransformOutputEpcs, getTransactions } from './ift-service';
 import { getSourceEPCData } from './retailer-actions';
 
+import { getIngredientSources } from "./ingredient-sources";
+
 // Catch errors that occur in asynchronous code and pass them to Express for processing
 export const catchAsync = fn => (...args) => fn(...args).catch(args[2]); // args[2] is next
 
@@ -42,11 +44,31 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
 });
 
 // controller to get the commissioned (most upstream) EPCs
-export const getCommissionedEpcsHandler: express.RequestHandler = catchAsync(async (
+export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(async (
   req: express.Request,
   res: express.Response,
   next: express.NextFunction
 ) => {
-  // This will get all the commisoned input epcs and related data
-  return res.status(200).json(await getSourceEPCData(req));
+  // This will get all the commissioned input epcs and related data
+  const data = await getSourceEPCData(req);
+
+  // handle different data output types
+  if (req.query.output === "" || !req.query.output || req.query.output.trim().toUpperCase() === "JSON") {
+    return res.status(200).json(data);
+  } else if (req.query.output.trim().toUpperCase() === "CSV") {
+
+    const [csv_headers, csv_rows] = await getIngredientSources(req);
+    res.status(200).header('Content-Type', 'text/csv');
+
+    res.write(JSON.stringify(csv_headers).slice(1, -1));
+    res.write("\n");
+    (csv_rows as any[]).forEach(d => {
+      res.write(d.toString());
+      res.write("\n");
+    });
+
+    res.end();
+    return res;
+  }
+  return res.status(400).json({"status": "bad request, invalid value for 'output'"});
 });
