@@ -76,9 +76,29 @@ class CSVRow extends Map<string, string | Date> {
    */
   toString(): string {
     const values = CSV_HEADERS.map((col) => this.get(col));
-    return JSON.stringify(Array.from(values).map((el) => !!el ? el: "")).slice(1, -1);
+
+    // utilize JSON.stringify to manage escaping necessary characters and wrapping in ""
+    // slice(1, -1) to remove brackets that JSON.stringify provides
+    // resulting string is a valid row as csv string
+    return JSON.stringify(Array.from(values).map((el) => el || "")).slice(1, -1);
   }
 };
+
+/**
+ * result from trace (productTrace) schema
+ */
+interface EPC {
+  epc_id: string
+  parent_epcs: EPC[],
+  input_epcs: EPC[],
+  output_epcs: EPC[],
+  child_epcs: EPC[],
+  events: Event[],
+}
+
+interface Event {
+  asset_id: string,
+}
 
 /**
  * very similar to getSourceEPCData
@@ -86,19 +106,20 @@ class CSVRow extends Map<string, string | Date> {
  * get all lots and serials associated with product id
  * 
  * @param req trace requirements
+ * 
+ * @returns [headers[], content[]]
  */
-export async function getIngredientSources(req) {
+export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
-  console.log(lotsAndSerials);
+
   if (lotsAndSerials && lotsAndSerials.length > 50) {
       return [
-        [],
-        [['Dataset returned is too large. Try narrowing your search using the date filters.']]
+        ['Error: Dataset returned is too large. Try narrowing your search using the date filters.'],
+        []
       ];
   } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [CSV_HEADERS, []];;
 
   let traceData = await ift_service.runTrace(req, lotsAndSerials, {upstream: true, downstream: false});
-  console.log(JSON.stringify(traceData, null, 2));
   
   // process event assets and parent assets
   let assets = [];
@@ -156,7 +177,7 @@ export async function getIngredientSources(req) {
  * @param productTrace trace result of the product
  * @param parentAssetMap map keeping track of parent.epc_id --> associated asset ids/events
  */
-function processParentAssets(productTrace, parentAssetMap): string[] {
+function processParentAssets(productTrace:EPC, parentAssetMap:{}): string[] {
   let assetIDs:string[] = [];
   if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
     productTrace.parent_epcs.forEach(parent => {
@@ -184,7 +205,7 @@ function processParentAssets(productTrace, parentAssetMap): string[] {
  * 
  * @param productTrace trace result of the product
  */
-function getAssetIDs(productTrace) {
+function getAssetIDs(productTrace:EPC) {
   let assetIDs = [];
 
   if (!!productTrace.events && productTrace.events.length > 0) {
@@ -206,7 +227,7 @@ function getAssetIDs(productTrace) {
  * 
  * @param allEventData object keeping track of all events
  */
-function processEventInfo(allEventData): [Map<any,any>, Map<any,any>, any[]] {
+function processEventInfo(allEventData:any[]): [Map<any,any>, Map<any,any>, any[]] {
   const assetEventMap = new Map();
   const locationMap = new Map();
   let productArr = [];
@@ -240,7 +261,7 @@ function processEventInfo(allEventData): [Map<any,any>, Map<any,any>, any[]] {
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateProductCSVRows(productTrace, data): CSVRow[] {
+function generateProductCSVRows(productTrace:EPC[], data): CSVRow[] {
   const rows: CSVRow[] = [];
   productTrace.forEach(trace => {
     const productRow:CSVRow = new CSVRow();
@@ -323,7 +344,7 @@ function generateProductCSVRows(productTrace, data): CSVRow[] {
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateIngredientCSVRows(productRow:CSVRow, productTrace, data): CSVRow[] {
+function generateIngredientCSVRows(productRow:CSVRow, productTrace:EPC[], data): CSVRow[] {
   const rows: CSVRow[] = [];
   productTrace.forEach(trace => {
     const ingredientRow:CSVRow = productRow.copy();
@@ -404,10 +425,25 @@ function findFinalLocation(events, locationMap): {arrivalDate, locationId, locat
     locationType:null
   };
   // const locations: Object[] = [];
-  const tieBreaker = ["STORE", "DISTRIBUTION_CENTER", "SUPPLIER", "FARM"]; // NOTE: Any other location types to worry about? party_role_code
-  // determine last event;
-  const finalEvent = events.reduce((event1, event2) => (event1.event_time > event2.event_time) ? event1 : event2 );
+  const tieBreaker = [
+    "BREEDER",
+    "FARMER",
+    "GROWER",
+    "FARM",
+    "SUPPLIER",
+    "DISTRIBUTION_CENTER",
+    "STORE",
+  ];
 
+  // determine latest event
+  const finalEvent = events.reduce((event1, event2) => {
+    const event_time1 = new Date(event1.event_time);
+    const event_time2 = new Date(event2.event_time);
+    
+    return (event_time1 > event_time2) ? event1 : event2;
+  });
+
+  // determine final location from latest event
   const finalLocation = [finalEvent.biz_location_id,
   ...finalEvent.destination_location_ids].map((location) => { // map location ids to location information
     const locData = locationMap.get(location);
@@ -418,10 +454,10 @@ function findFinalLocation(events, locationMap): {arrivalDate, locationId, locat
       locationType: locData.party_role_code
     };
   }).reduce((loc1, loc2) => { // reduce to a single location
-    const ind1 = (tieBreaker.indexOf(loc1.locationType) === -1) ? tieBreaker.length: tieBreaker.indexOf(loc1.locationType);
-    const ind2 = (tieBreaker.indexOf(loc2.locationType) === -1) ? tieBreaker.length: tieBreaker.indexOf(loc2.locationType);
-    return (ind1 < ind2) ? loc1: loc2 ;
-  })
+    const ind1 = tieBreaker.indexOf(loc1.locationType);
+    const ind2 = tieBreaker.indexOf(loc2.locationType);
+    return (ind1 > ind2) ? loc1: loc2 ;
+  });
 
   return finalLocation;
 }
@@ -441,22 +477,34 @@ function findSourceLocation(events, locationMap) {
     locationType:null
   };
 
-  const locTieBreaker = ["FARM", "SUPPLIER", "DISTRIBUTION_CENTER", "STORE"]; // NOTE: Any other location types to worry about? party_role_code
+  const locTieBreaker = [
+    "STORE",
+    "DISTRIBUTION_CENTER",
+    "SUPPLIER",
+    "FARM",
+    "FARMER",
+    "GROWER",
+    "BREEDER",
+  ];
   const eventTieBreaker = ["aggregation", "observation", "commission"];
-  // determine last event;
+  
+  // determine source event
   const firstEvent = events.reduce((event1, event2) => {
-    if (event1.event_time < event2.event_time) {
+    const event_time1 = new Date(event1.event_time);
+    const event_time2 = new Date(event2.event_time);
+    if (event_time1 < event_time2) {
       return event1;
-    } else if (event1.event_time > event2.event_time) {
+    } else if (event_time1 > event_time2) {
       return event2;
     } else {
       // evaluate on an index using event tiebreaker values.
-      const ind1 = (eventTieBreaker.indexOf(event1.locationType) === -1) ? eventTieBreaker.length: eventTieBreaker.indexOf(event1.event_type);
-      const ind2 = (eventTieBreaker.indexOf(event2.locationType) === -1) ? eventTieBreaker.length: eventTieBreaker.indexOf(event2.event_type);
-      return (ind1 < ind2) ? event1: event2;
+      const ind1 = eventTieBreaker.indexOf(event1.event_type);
+      const ind2 = eventTieBreaker.indexOf(event2.event_type);
+      return (ind1 > ind2) ? event1: event2;
     }
   });
 
+  // determine source location from source event
   const sourceLocation = [firstEvent.biz_location_id,
   ...firstEvent.source_location_ids].map((location) => { // map location ids to location information
     const locData = locationMap.get(location);
@@ -468,10 +516,10 @@ function findSourceLocation(events, locationMap) {
     };
   }).reduce((loc1, loc2) => { // reduce to a single location
     // evaluate on an index using location tiebreaker values.
-    const ind1 = (locTieBreaker.indexOf(loc1.locationType) === -1) ? locTieBreaker.length: locTieBreaker.indexOf(loc1.locationType);
-    const ind2 = (locTieBreaker.indexOf(loc2.locationType) === -1) ? locTieBreaker.length: locTieBreaker.indexOf(loc2.locationType);
-    return (ind1 < ind2) ? loc1: loc2;
-  })
+    const ind1 = locTieBreaker.indexOf(loc1.locationType);
+    const ind2 = locTieBreaker.indexOf(loc2.locationType);
+    return (ind1 > ind2) ? loc1: loc2;
+  });
 
   return sourceLocation;
 }

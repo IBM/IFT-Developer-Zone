@@ -43,7 +43,12 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
   return res.status(200).json(await getTransactions(req, totalEpcs));
 });
 
-// controller to get the commissioned (most upstream) EPCs
+/**
+ * Provides location information on the ingredients of each provided
+ * product restricted by event time and start dates.
+ * 
+ * Returns either a text/csv or an application/json response.
+ */
 export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(async (
   req: express.Request,
   res: express.Response,
@@ -53,16 +58,20 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   const data = await getSourceEPCData(req);
 
   // handle different data output types
-  if (req.query.output === "" || !req.query.output || req.query.output.trim().toUpperCase() === "JSON") {
+  if (!req.query.output || req.query.output.trim().toUpperCase() === "JSON") {
     return res.status(200).json(data);
   } else if (req.query.output.trim().toUpperCase() === "CSV") {
 
     const [csv_headers, csv_rows] = await getIngredientSources(req);
     res.status(200).header('Content-Type', 'text/csv');
 
+    // utilize JSON.stringify to manage escaping necessary characters and wrapping in ""
+    // slice(1, -1) to remove brackets that JSON.stringify provides
+    // resulting string is a valid row as csv string
     res.write(JSON.stringify(csv_headers).slice(1, -1));
     res.write("\n");
-    (csv_rows as any[]).forEach(d => {
+
+    csv_rows.forEach(d => {
       res.write(d.toString());
       res.write("\n");
     });
@@ -70,5 +79,8 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
     res.end();
     return res;
   }
-  return res.status(400).json({"status": "bad request, invalid value for 'output'"});
+  
+  return res.status(400).json({
+    "status": "bad request, invalid value for 'output'"
+  });
 });
