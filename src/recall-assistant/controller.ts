@@ -65,10 +65,12 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
     const [csv_headers, csv_rows] = await getIngredientSources(req);
     res.status(200).header('Content-Type', 'text/csv');
 
-    // utilize JSON.stringify to manage escaping necessary characters and wrapping in ""
-    // slice(1, -1) to remove brackets that JSON.stringify provides
-    // resulting string is a valid row as csv string
-    res.write(JSON.stringify(csv_headers).slice(1, -1));
+    // escape quotes
+    let headerString = csv_headers.map((value) => {
+      return value ? value.toString().replace(/"/g, "\"\""): ""
+    }).join("\",\"");
+
+    res.write(`"${headerString}`);
     res.write("\n");
 
     csv_rows.forEach(d => {

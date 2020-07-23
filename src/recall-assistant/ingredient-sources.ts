@@ -75,12 +75,11 @@ class CSVRow extends Map<string, string | Date> {
    * @returns: row as csv string
    */
   toString(): string {
-    const values = CSV_HEADERS.map((col) => this.get(col));
-
-    // utilize JSON.stringify to manage escaping necessary characters and wrapping in ""
-    // slice(1, -1) to remove brackets that JSON.stringify provides
-    // resulting string is a valid row as csv string
-    return JSON.stringify(Array.from(values).map((el) => el || "")).slice(1, -1);
+    const values = CSV_HEADERS.map((col) => {
+      let value = this.get(col);
+      return value ? value.toString().replace(/"/g, "\"\""): "";
+    });
+    return `"${values.join("\",\"")}"`;
   }
 };
 
