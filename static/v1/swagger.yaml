@@ -10,6 +10,7 @@ info:
     * EPCs harvested
     * EPCs impacted (including products with harvested EPCs as ingredients)
     * Purchase orders and Despatch advice IDs associated with shipments of any impacted EPCs
+    * EPCs & locations of any ingredients used in the final product(s) searched
     
     # Authorization to use the IFT Recall Assistant API
     
