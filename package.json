@@ -30,7 +30,8 @@
     "start-old-node": "node bin/app.js",
     "debug": "tsc && node --inspect=12345 bin/app.js",
     "deploy": "NAME_SPACE=dev CHART_NAME=recall-assistant",
-    "auto-deploy": "npm run auto-build && DEV_MODE=true MINIKUBE_DATA_CTX=dev NAME_SPACE=dev CHART_NAME=recall-assistant"
+    "auto-deploy": "npm run auto-build && DEV_MODE=true MINIKUBE_DATA_CTX=dev NAME_SPACE=dev CHART_NAME=recall-assistant",
+    "cli": "node bin/assistant-cli.js"
   },
   "dependencies": {
     "express": "^4.16.2",
