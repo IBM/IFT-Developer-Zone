@@ -55,10 +55,10 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   next: express.NextFunction
 ) => {
   // This will get all the commissioned input epcs and related data
-  const data = await getSourceEPCData(req);
 
   // handle different data output types
   if (!req.query.output || req.query.output.trim().toUpperCase() === "JSON") {
+    const data = await getSourceEPCData(req);
     return res.status(200).json(data);
   } else if (req.query.output.trim().toUpperCase() === "CSV") {
 
@@ -70,7 +70,7 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
       return value ? value.toString().replace(/"/g, "\"\""): ""
     }).join("\",\"");
 
-    res.write(`"${headerString}`);
+    res.write(`"${headerString}"`);
     res.write("\n");
 
     csv_rows.forEach(d => {
