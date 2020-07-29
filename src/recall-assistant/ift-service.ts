@@ -386,7 +386,7 @@ export async function getProductsData(req, productIds) {
 }
 
 // Method to get all the epcEvent mapping from the traced response
-export function getEpcEventsMapFromTrace(traceResponse): {} {
+export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
   const epcEventMap = { outputs: {} , inputs: [{}] };
   epcEventMap.outputs = {
     epc_id : traceResponse.epc_id,
@@ -395,30 +395,40 @@ export function getEpcEventsMapFromTrace(traceResponse): {} {
       return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
     })
   };
-  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
+  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs, parentAssetMap);
   return epcEventMap;
 }
 
 // Recursively loop through the EPC tree to get all events
-export function getUpstreamEventsAndEPCs(epcs) {
+export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
   if (!(epcs && epcs.length)) {
     return [];
   }
 
   return (!(epcs && epcs.length > 0)) ? []: epcs.reduce((allEvents, epc) => { // foreach in the list do the following
+    
     if (epc.input_epcs.length > 0) {
       // if there exist input epcs, traverse further in the tree
       allEvents.push(...this.getUpstreamEventsAndEPCs(epc.input_epcs));
-    } else {
-      // if there are no more inputs, return the edge events
-      allEvents.push({
-        epc_id : epc.epc_id,
-        // events: epc.events
-        events: epc.events.filter((event) => {
-          return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
-        })
+    }
+    
+    // NOTE: since we will be processing all intermediate ingredients as well,
+    // this will also be run for those cases.
+    const parentEvents = [];
+    if (epc.parent_epcs && epc.parent_epcs.length > 0) {
+      epc.parent_epcs.forEach(parent => {
+        parentEvents.push(...parent.events);
       });
     }
+
+    allEvents.push({
+      epc_id : epc.epc_id,
+      // events: epc.events
+      events: [...parentEvents, ...epc.events].filter((event) => {
+        return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
+      })
+    });
+
     return allEvents;
   }, []);
 }

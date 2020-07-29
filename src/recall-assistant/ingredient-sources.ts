@@ -4,6 +4,7 @@ import * as _ from 'lodash';
 
 import * as ift_service from './ift-service';
 import * as retailer from './retailer-actions';
+import { EPC, Event } from './retailer-actions';
 
 /**
  * All available columns/headers for the csv output
@@ -84,22 +85,6 @@ class CSVRow extends Map<string, string | Date> {
 };
 
 /**
- * result from trace (productTrace) schema
- */
-interface EPC {
-  epc_id: string
-  parent_epcs: EPC[],
-  input_epcs: EPC[],
-  output_epcs: EPC[],
-  child_epcs: EPC[],
-  events: Event[],
-}
-
-interface Event {
-  asset_id: string,
-}
-
-/**
  * very similar to getSourceEPCData
  * small tweaks in function calls, treatment of transactions
  * get all lots and serials associated with product id
@@ -131,7 +116,7 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
 
     // process parent assets
     traceData.forEach(productTrace => {
-      assets.push(...processParentAssets(productTrace, parentAssetMap));
+      assets.push(...retailer.processParentAssets(productTrace, parentAssetMap));
     });
   } else { return [CSV_HEADERS, []]; }
 
@@ -166,36 +151,6 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
       csv_rows
   ];
 
-}
-
-/**
- * processes the parent EPCs since if a parent EPC shows up twice,
- * it only shows the information once in the product trace, we will
- * create a map to hold the information
- * 
- * @param productTrace trace result of the product
- * @param parentAssetMap map keeping track of parent.epc_id --> associated asset ids/events
- */
-function processParentAssets(productTrace:EPC, parentAssetMap:{}): string[] {
-  let assetIDs:string[] = [];
-  if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
-    productTrace.parent_epcs.forEach(parent => {
-      let assets = parentAssetMap[parent.epc_id];
-      if (!assets) assets = []; // if not kept track yet, initialize empty assets array
-      assets.push(...parent.events.map((event) => event.asset_id ).filter((el) => !!el));
-
-      parentAssetMap[parent.epc_id] = _.uniq(assets);
-      assetIDs.push(...assets);
-    });
-  }
-
-  if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
-    productTrace.input_epcs.forEach(input_product => {
-      assetIDs.push(...processParentAssets(input_product, parentAssetMap));
-    })
-  }
-
-  return assetIDs;
 }
 
 /**

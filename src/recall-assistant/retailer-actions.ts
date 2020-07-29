@@ -25,6 +25,22 @@ export interface EventInfo {
   transactions: any;
 }
 
+/**
+ * result from trace (productTrace) schema
+ */
+export interface EPC {
+  epc_id: string
+  parent_epcs: EPC[],
+  input_epcs: EPC[],
+  output_epcs: EPC[],
+  child_epcs: EPC[],
+  events: Event[],
+}
+
+export interface Event {
+  asset_id: string,
+}
+
 export interface Location {
   locationId: string;
   locationName: string;
@@ -34,6 +50,7 @@ export interface Location {
 
 const eventsMap = new Map();
 const locationMap = new Map();
+const parentAssetMap = {};
 let productArray = [];
 const transactionsMap = {
   po: new Map(),
@@ -65,7 +82,8 @@ export async function getSourceEPCData(req) {
   let assets = [];
   if (traceData && traceData.length > 0) {
     traceData.forEach(setOfEvents => {
-      const traceMap = ift_service.getEpcEventsMapFromTrace(setOfEvents);
+      assets.push(...processParentAssets(setOfEvents, parentAssetMap));
+      const traceMap = ift_service.getEpcEventsMapFromTrace(setOfEvents, parentAssetMap);
       epcTraceMap.set(setOfEvents.epc_id, traceMap);
       assets.push(...getAssetList(traceMap));
     });
@@ -115,6 +133,36 @@ export async function getSourceEPCData(req) {
   // get formatted output
   const output = formatOutput(epcTraceMap);
   return output;
+}
+
+/**
+ * processes the parent EPCs since if a parent EPC shows up twice,
+ * it only shows the information once in the product trace, we will
+ * create a map to hold the information
+ * 
+ * @param productTrace trace result of the product
+ * @param parentAssetMap map keeping track of parent.epc_id --> associated asset ids/events
+ */
+export function processParentAssets(productTrace:EPC, parentAssetMap:{}): string[] {
+  let assetIDs:string[] = [];
+  if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
+    productTrace.parent_epcs.forEach(parent => {
+      let assets = parentAssetMap[parent.epc_id];
+      if (!assets) assets = []; // if not kept track yet, initialize empty assets array
+      assets.push(...parent.events.map((event) => event.asset_id ).filter((el) => !!el));
+
+      parentAssetMap[parent.epc_id] = _.uniq(assets);
+      assetIDs.push(...assets);
+    });
+  }
+
+  if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
+    productTrace.input_epcs.forEach(input_product => {
+      assetIDs.push(...processParentAssets(input_product, parentAssetMap));
+    })
+  }
+
+  return assetIDs;
 }
 
 /**
