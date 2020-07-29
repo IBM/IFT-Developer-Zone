@@ -83,6 +83,6 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   }
   
   return res.status(400).json({
-    "status": "bad request, invalid value for 'output'"
+    "status": "bad request, invalid value for 'output'; should be either 'JSON' or 'CSV'"
   });
 });

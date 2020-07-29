@@ -147,8 +147,7 @@ export function processParentAssets(productTrace:EPC, parentAssetMap:{}): string
   let assetIDs:string[] = [];
   if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
     productTrace.parent_epcs.forEach(parent => {
-      let assets = parentAssetMap[parent.epc_id];
-      if (!assets) assets = []; // if not kept track yet, initialize empty assets array
+      const assets = parentAssetMap[parent.epc_id] || [];
       assets.push(...parent.events.map((event) => event.asset_id ).filter((el) => !!el));
 
       parentAssetMap[parent.epc_id] = _.uniq(assets);

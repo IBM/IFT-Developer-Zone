@@ -350,7 +350,7 @@ export async function getLocationsData(req, locationIds: any[]) {
     }));
   }
   
-  return (!(locations && locations.length)) ? []:locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(locations && locations.length)) ? [] : locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 /**
