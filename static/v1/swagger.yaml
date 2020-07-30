@@ -113,7 +113,7 @@ components:
     output:
       name: output
       in: query
-      description: format of the output. Only "JSON" and "CSV" are provided. The default is "JSON"
+      description: format of the output. Only "JSON" and "CSV" are provided. The default is "CSV"
       schema:
         $ref: '#/components/schemas/string'
   schemas:

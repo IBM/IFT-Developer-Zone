@@ -57,11 +57,9 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   // This will get all the commissioned input epcs and related data
 
   // handle different data output types
-  if (!req.query.output || req.query.output.trim().toUpperCase() === "JSON") {
-    const data = await getSourceEPCData(req);
-    return res.status(200).json(data);
-  } else if (req.query.output.trim().toUpperCase() === "CSV") {
+  const format: string = req.query.output as string;
 
+  if (!format || format.trim().toUpperCase() === "CSV") {
     const [csv_headers, csv_rows] = await getIngredientSources(req);
     res.status(200).header('Content-Type', 'text/csv');
 
@@ -80,6 +78,9 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
 
     res.end();
     return res;
+  } else if (format.trim().toUpperCase() === "JSON") {
+    const data = await getSourceEPCData(req);
+    return res.status(200).json(data);
   }
   
   return res.status(400).json({
