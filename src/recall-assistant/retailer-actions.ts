@@ -29,16 +29,16 @@ export interface EventInfo {
  * result from trace (productTrace) schema
  */
 export interface EPC {
-  epc_id: string
-  parent_epcs: EPC[],
-  input_epcs: EPC[],
-  output_epcs: EPC[],
-  child_epcs: EPC[],
-  events: Event[],
+  epc_id: string;
+  parent_epcs: EPC[];
+  input_epcs: EPC[];
+  output_epcs: EPC[];
+  child_epcs: EPC[];
+  events: Event[];
 }
 
 export interface Event {
-  asset_id: string,
+  asset_id: string;
 }
 
 export interface Location {
@@ -71,11 +71,13 @@ export async function getSourceEPCData(req) {
   // If the number of lots and serials are greater than 50 (for the moment), ask the user to narrow the
   // search using the date filters
   if (lotsAndSerials && lotsAndSerials.length > 50) {
-    return('Dataset returned is too large. Try narrowing your search using the date filters.');
-  } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [];
+    return ('Dataset returned is too large. Try narrowing your search using the date filters.');
+  } if (!lotsAndSerials || lotsAndSerials.length === 0) {
+    return [];
+  }
 
   // 2) trace upstream on all epcs from step 1
-  const traceData = await ift_service.runTrace(req, lotsAndSerials, {upstream: true, downstream:false});
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
 
   // 3) Extract all the assestIDs from all the trace results
   const epcTraceMap = new Map();
@@ -139,26 +141,26 @@ export async function getSourceEPCData(req) {
  * processes the parent EPCs since if a parent EPC shows up twice,
  * it only shows the information once in the product trace, we will
  * create a map to hold the information
- * 
+ *
  * @param productTrace trace result of the product
- * @param parentAssetMap map keeping track of parent.epc_id --> associated asset ids/events
+ * @param parentAssets map keeping track of parent.epc_id --> associated asset ids/events
  */
-export function processParentAssets(productTrace:EPC, parentAssetMap:{}): string[] {
-  let assetIDs:string[] = [];
+export function processParentAssets(productTrace: EPC, parentAssets: {}): string[] {
+  const assetIDs: string[] = [];
   if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
     productTrace.parent_epcs.forEach(parent => {
-      const assets = parentAssetMap[parent.epc_id] || [];
-      assets.push(...parent.events.map((event) => event.asset_id ).filter((el) => !!el));
+      const assets = parentAssets[parent.epc_id] || [];
+      assets.push(...parent.events.map((event) => event.asset_id).filter((el) => !!el));
 
-      parentAssetMap[parent.epc_id] = _.uniq(assets);
+      parentAssets[parent.epc_id] = _.uniq(assets);
       assetIDs.push(...assets);
     });
   }
 
   if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
     productTrace.input_epcs.forEach(input_product => {
-      assetIDs.push(...processParentAssets(input_product, parentAssetMap));
-    })
+      assetIDs.push(...processParentAssets(input_product, parentAssets));
+    });
   }
 
   return assetIDs;
@@ -223,7 +225,8 @@ export function formatOutput(epcTraceMap) {
           });
         }
         inputProdInfo.productGtin = (inputPData && inputPData.id) || (inputProducts[0] && inputProducts[0].id);
-        inputProdInfo.productName = (inputPData && inputPData.description) || (inputProducts[0] && inputProducts[0].description);
+        inputProdInfo.productName = (inputPData && inputPData.description)
+          || (inputProducts[0] && inputProducts[0].description);
       }
 
       inputProdInfo.eventInfo = inputEventArr;
@@ -359,10 +362,10 @@ function getFormattedEventsArray(eventList) {
   eventList.forEach((event) => {
     const eventInfo = eventsMap.get(event.asset_id);
     if (eventInfo) {
-      orgId =  eventInfo.org_id;
+      orgId = eventInfo.org_id;
       // Get the shipping and transaction info
       const bizLocation = locationMap.get(eventInfo.biz_location_id);
-      if (eventInfo.event_type === "commission") { // If commission, display only source location, else display
+      if (eventInfo.event_type === 'commission') { // If commission, display only source location, else display
         eventArr.push({
           bizStep: eventInfo.biz_step,
           eventDate: eventInfo.event_time,
@@ -387,23 +390,25 @@ function getFormattedEventsArray(eventList) {
 
 /**
  * Checks equality for two arrays of location ids
- * 
+ *
  * uses sets: if number of locations is high and order is irrelevant
  * then set logic will be faster
- * 
+ *
  * @param a First array
  * @param b Second array
  */
 function locationEquals(a, b) {
-  if (!a || !b) return false;
-  if (a === b) return true;
+  if (!a || !b) { return false; }
+  if (a === b) { return true; }
 
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) { return false; }
 
   const aSet = new Set(a);
   const bSet = new Set(b);
 
-  for (let item of aSet) if (!bSet.has(item)) return false;
+  for (const item of aSet) {
+    if (!bSet.has(item)) { return false; }
+  }
 
   return true;
 
