@@ -62,6 +62,7 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   if (!format || format.trim().toUpperCase() === 'CSV') {
     const [csv_headers, csv_rows] = await getIngredientSources(req);
     res.status(200).header('Content-Type', 'text/csv');
+    res.header('Content-Disposition', `attachment; filename="ingredient_source-${Date.now()}.csv"`);
 
     // escape quotes
     const headerString = csv_headers.map((value) => {
