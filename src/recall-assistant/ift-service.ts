@@ -244,7 +244,7 @@ export async function getProductLotsAndSerials(req) {
 
 // Get all the aggregation/observation events for given lots and serials
 // TODO: make it more generic to support other types
-export async function getEvents(req, inputAssetIds: string[], bizSteps?: string[]) {
+export async function getEvents(req, inputAssetIds: string[], eventTypes:string[]=["commission", "aggregation", "observation"], bizSteps?: string[]) {
   const eventsList = [];
   const options = {
     headers: {
@@ -269,7 +269,7 @@ export async function getEvents(req, inputAssetIds: string[], bizSteps?: string[
       // const eventEndTimeParams = getTraceConstraintParameters('', [], '', req.query.event_end_timestamp);
       // Since we want to filter by commission time, no need to filter by event_end_timestamp here
       const eventEndTimeParams = '';
-      const eventCallUri = `${config.ift_url}/events?event_type[]=aggregation&event_type[]=commission&event_type[]=observation${
+      const eventCallUri = `${config.ift_url}/events?${(!(eventTypes && eventTypes.length)) ? "":`event_type[]=${eventTypes.join("&event_type[]=")}`}${
         eventCallUriParamWithAssets}${eventBizStep}${eventEndTimeParams}`;
       console.info(`Trace call to get all events from asset ids: ${eventCallUri}`);
 
@@ -350,7 +350,7 @@ export async function getLocationsData(req, locationIds: any[]) {
     }));
   }
   
-  return locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(locations && locations.length)) ? [] : locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 /**
@@ -382,11 +382,11 @@ export async function getProductsData(req, productIds) {
       return productUri;
     }));
   }
-  return products.map((responseJSON) => responseJSON.products).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(products && products.length)) ? []: products.map((responseJSON) => responseJSON.products).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 // Method to get all the epcEvent mapping from the traced response
-export function getEpcEventsMapFromTrace(traceResponse): {} {
+export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
   const epcEventMap = { outputs: {} , inputs: [{}] };
   epcEventMap.outputs = {
     epc_id : traceResponse.epc_id,
@@ -395,30 +395,40 @@ export function getEpcEventsMapFromTrace(traceResponse): {} {
       return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
     })
   };
-  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
+  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs, parentAssetMap);
   return epcEventMap;
 }
 
 // Recursively loop through the EPC tree to get all events
-export function getUpstreamEventsAndEPCs(epcs) {
+export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
   if (!(epcs && epcs.length)) {
     return [];
   }
 
   return (!(epcs && epcs.length > 0)) ? []: epcs.reduce((allEvents, epc) => { // foreach in the list do the following
+    
     if (epc.input_epcs.length > 0) {
       // if there exist input epcs, traverse further in the tree
       allEvents.push(...this.getUpstreamEventsAndEPCs(epc.input_epcs));
-    } else {
-      // if there are no more inputs, return the edge events
-      allEvents.push({
-        epc_id : epc.epc_id,
-        // events: epc.events
-        events: epc.events.filter((event) => {
-          return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
-        })
+    }
+    
+    // NOTE: since we will be processing all intermediate ingredients as well,
+    // this will also be run for those cases.
+    const parentEvents = [];
+    if (epc.parent_epcs && epc.parent_epcs.length > 0) {
+      epc.parent_epcs.forEach(parent => {
+        parentEvents.push(...parent.events);
       });
     }
+
+    allEvents.push({
+      epc_id : epc.epc_id,
+      // events: epc.events
+      events: [...parentEvents, ...epc.events].filter((event) => {
+        return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
+      })
+    });
+
     return allEvents;
   }, []);
 }

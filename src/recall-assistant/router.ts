@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCommissionedEpcsHandler,
+import { getIngredientSourcesHandler,
          getEpcsHandler,
          getEpcsWithTransformsHandler,
          getTransactionsHandler
@@ -19,7 +19,7 @@ export class TraceAssistantRouter {
     router.get('/impacted-transactions' , getTransactionsHandler);
 
     // Return commisisoned EPCs and their related data
-    router.get('/commissioned-epcs' , getCommissionedEpcsHandler);
+    router.get('/ingredient-sources' , getIngredientSourcesHandler);
 
     return router;
   }

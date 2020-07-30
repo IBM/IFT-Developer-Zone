@@ -4,6 +4,8 @@ import * as _ from 'lodash';
 import { getEpcs, getTransformOutputEpcs, getTransactions } from './ift-service';
 import { getSourceEPCData } from './retailer-actions';
 
+import { getIngredientSources } from "./ingredient-sources";
+
 // Catch errors that occur in asynchronous code and pass them to Express for processing
 export const catchAsync = fn => (...args) => fn(...args).catch(args[2]); // args[2] is next
 
@@ -41,12 +43,47 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
   return res.status(200).json(await getTransactions(req, totalEpcs));
 });
 
-// controller to get the commissioned (most upstream) EPCs
-export const getCommissionedEpcsHandler: express.RequestHandler = catchAsync(async (
+/**
+ * Provides location information on the ingredients of each provided
+ * product restricted by event time and start dates.
+ * 
+ * Returns either a text/csv or an application/json response.
+ */
+export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(async (
   req: express.Request,
   res: express.Response,
   next: express.NextFunction
 ) => {
-  // This will get all the commisoned input epcs and related data
-  return res.status(200).json(await getSourceEPCData(req));
+  // This will get all the commissioned input epcs and related data
+
+  // handle different data output types
+  const format: string = req.query.output as string;
+
+  if (!format || format.trim().toUpperCase() === "CSV") {
+    const [csv_headers, csv_rows] = await getIngredientSources(req);
+    res.status(200).header('Content-Type', 'text/csv');
+
+    // escape quotes
+    let headerString = csv_headers.map((value) => {
+      return value ? value.toString().replace(/"/g, "\"\""): ""
+    }).join("\",\"");
+
+    res.write(`"${headerString}"`);
+    res.write("\n");
+
+    csv_rows.forEach(d => {
+      res.write(d.toString());
+      res.write("\n");
+    });
+
+    res.end();
+    return res;
+  } else if (format.trim().toUpperCase() === "JSON") {
+    const data = await getSourceEPCData(req);
+    return res.status(200).json(data);
+  }
+  
+  return res.status(400).json({
+    "status": "bad request, invalid value for 'output'; should be either 'JSON' or 'CSV'"
+  });
 });
