@@ -311,9 +311,9 @@ function getLocationInfo(locations): Location[] {
     if (locData) {
       locArray.push({
         locationId: loc,
-        locationName: locData.party_name,
-        locationType: locData.party_role_code,
-        locationOwner: locData.org_id
+        locationName: locData ? locData.party_name : undefined,
+        locationType: locData ? locData.party_role_code : undefined,
+        locationOwner: locData ? locData.org_id : undefined
       });
     }
   });
@@ -361,11 +361,12 @@ function getFormattedEventsArray(eventList) {
     if (eventInfo) {
       orgId =  eventInfo.org_id;
       // Get the shipping and transaction info
+      const bizLocation = locationMap.get(eventInfo.biz_location_id);
       if (eventInfo.event_type === "commission") { // If commission, display only source location, else display
         eventArr.push({
           bizStep: eventInfo.biz_step,
           eventDate: eventInfo.event_time,
-          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          eventLocation: bizLocation ? bizLocation.party_name : undefined,
           sourceLocation: getLocationInfo(eventInfo.source_location_ids),
           transactions: getTransactionInfo(eventInfo.transaction_ids)
         });
@@ -373,7 +374,7 @@ function getFormattedEventsArray(eventList) {
         eventArr.push({
           bizStep: eventInfo.biz_step,
           eventDate: eventInfo.event_time,
-          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          eventLocation: bizLocation ? bizLocation.party_name : undefined,
           sourceLocation: getLocationInfo(eventInfo.source_location_ids),
           destinationLocation: getLocationInfo(eventInfo.destination_location_ids),
           transactions: getTransactionInfo(eventInfo.transaction_ids)
