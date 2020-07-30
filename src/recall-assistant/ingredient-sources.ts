@@ -404,8 +404,8 @@ function findFinalLocation(events, locationMap): {arrivalDate, locationId, locat
     return {
       arrivalDate: finalEvent.event_time,
       locationId: location,
-      locationName: locData.party_name,
-      locationType: locData.party_role_code
+      locationName: locData ? locData.party_name : undefined,
+      locationType: locData ? locData.party_role_code : undefined
     };
   }).reduce((loc1, loc2) => { // reduce to a single location
     const ind1 = tieBreaker.indexOf(loc1.locationType);
@@ -465,8 +465,8 @@ function findSourceLocation(events, locationMap) {
     return {
       creationDate: firstEvent.event_time,
       locationId: location,
-      locationName: locData.party_name,
-      locationType: locData.party_role_code
+      locationName: locData ? locData.party_name : undefined,
+      locationType: locData ? locData.party_role_code : undefined
     };
   }).reduce((loc1, loc2) => { // reduce to a single location
     // evaluate on an index using location tiebreaker values.
