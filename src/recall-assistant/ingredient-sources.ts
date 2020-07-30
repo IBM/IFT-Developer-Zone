@@ -3,27 +3,28 @@ import * as rp from 'request-promise-native';
 import * as _ from 'lodash';
 
 import * as ift_service from './ift-service';
-import * as retailer from './retailer-actions';
-import { EPC, Event } from './retailer-actions';
+import { processParentAssets,
+         getProductFromEpc,
+         EPC } from './retailer-actions';
 
 /**
  * All available columns/headers for the csv output
  */
 const ALL_HEADERS = {
-  productEPC:"Finished Product (EPC)",
-  productName:"Finished Product Name",
-  productGTIN:"Finished Product GTIN",
-  finalLocationID:"Final Location (GLN)",
-  finalLocationName:"Final Location Name",
-  finalLocationType:"Final Location Type",
-  arrivalDate:"Arrival Date",
-  ingredientEPC:"Ingredient (EPC)",
-  ingredientName:"Ingredient Name",
-  ingredientGTIN:"Ingredient GTIN",
-  sourceLocationID:"Source Location (GLN)",
-  sourceLocationName:"Source Location Name",
-  sourceLocationType:"Source Location Type",
-  creationDate: "Creation Date",
+  productEPC: 'Finished Product (EPC)',
+  productName: 'Finished Product Name',
+  productGTIN: 'Finished Product GTIN',
+  finalLocationID: 'Final Location (GLN)',
+  finalLocationName: 'Final Location Name',
+  finalLocationType: 'Final Location Type',
+  arrivalDate: 'Arrival Date',
+  ingredientEPC: 'Ingredient (EPC)',
+  ingredientName: 'Ingredient Name',
+  ingredientGTIN: 'Ingredient GTIN',
+  sourceLocationID: 'Source Location (GLN)',
+  sourceLocationName: 'Source Location Name',
+  sourceLocationType: 'Source Location Type',
+  creationDate: 'Creation Date',
 };
 
 /**
@@ -50,7 +51,7 @@ const CSV_HEADERS = [
 
 /**
  * CSVRow object to standardize order of output as well as easily
- * 
+ *
  */
 class CSVRow extends Map<string, string | Date> {
   constructor() {
@@ -64,47 +65,49 @@ class CSVRow extends Map<string, string | Date> {
    */
   copy() {
     const copy = new CSVRow();
-    for (let [key, value] of this) {
+    for (const [key, value] of this) {
       copy.set(key, value);
     }
     return copy;
   }
-   
+
   /**
    * produces a valid row as csv string
-   * 
+   *
    * @returns: row as csv string
    */
   toString(): string {
     const values = CSV_HEADERS.map((col) => {
-      let value = this.get(col);
-      return value ? value.toString().replace(/"/g, "\"\""): "";
+      const value = this.get(col);
+      return value ? value.toString().replace(/"/g, '\"\"') : '';
     });
-    return `"${values.join("\",\"")}"`;
+    return `"${values.join('\",\"')}"`;
   }
-};
+}
 
 /**
  * very similar to getSourceEPCData
  * small tweaks in function calls, treatment of transactions
  * get all lots and serials associated with product id
- * 
+ *
  * @param req trace requirements
- * 
+ *
  * @returns [headers[], content[]]
  */
 export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
 
   if (lotsAndSerials && lotsAndSerials.length > 50) {
-      return [
-        ['Error: Dataset returned is too large. Try narrowing your search using the date filters.'],
-        []
-      ];
-  } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [CSV_HEADERS, []];;
+    return [
+      ['Error: Dataset returned is too large. Try narrowing your search using the date filters.'],
+      []
+    ];
+  } if (!lotsAndSerials || lotsAndSerials.length === 0) {
+    return [CSV_HEADERS, []];
+  }
 
-  let traceData = await ift_service.runTrace(req, lotsAndSerials, {upstream: true, downstream: false});
-  
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
+
   // process event assets and parent assets
   let assets = [];
   const parentAssetMap = {};
@@ -116,7 +119,7 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
 
     // process parent assets
     traceData.forEach(productTrace => {
-      assets.push(...retailer.processParentAssets(productTrace, parentAssetMap));
+      assets.push(...processParentAssets(productTrace, parentAssetMap));
     });
   } else { return [CSV_HEADERS, []]; }
 
@@ -125,15 +128,16 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
   // get all related event, location, and product information
   const allEventData: any[] = await ift_service.getEvents(req, assets, []);
 
-  const [assetEventMap, locationMap, productArr]: [Map<any,any>, Map<any,any>, any[]] = processEventInfo(allEventData);
+  const [assetEventMap, locationMap, productArr]: [Map<any, any>, Map<any, any>, any[]]
+      = processEventInfo(allEventData);
 
   const locationMasterData = await ift_service.getLocationsData(req, Array.from(locationMap.keys()));
   const productMasterData = await ift_service.getProductsData(req, productArr);
-  
+
   locationMasterData.forEach((location) => {
     locationMap.set(location.id, location);
   }); // populate locationMap with information
-  
+
   // important data used in generating CSVs
   const masterData = {
     events: assetEventMap,
@@ -147,8 +151,8 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
   csv_rows.push(...generateProductCSVRows(traceData, masterData));
 
   return [
-      CSV_HEADERS,
-      csv_rows
+    CSV_HEADERS,
+    csv_rows
   ];
 
 }
@@ -156,10 +160,10 @@ export async function getIngredientSources(req): Promise<[string[], CSVRow[]]> {
 /**
  * Similar to getAssetIds from retailer-actions
  * difference in that this captures intermediate EPCs as well
- * 
+ *
  * @param productTrace trace result of the product
  */
-function getAssetIDs(productTrace:EPC) {
+function getAssetIDs(productTrace: EPC) {
   let assetIDs = [];
 
   if (!!productTrace.events && productTrace.events.length > 0) {
@@ -169,7 +173,7 @@ function getAssetIDs(productTrace:EPC) {
   if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
     productTrace.input_epcs.forEach(input_product => {
       assetIDs.push(...getAssetIDs(input_product));
-    })
+    });
   }
 
   return assetIDs;
@@ -178,10 +182,10 @@ function getAssetIDs(productTrace:EPC) {
 /**
  * source: retailer.processEventData
  * difference: ignoring transactions and not utilizing globals
- * 
+ *
  * @param allEventData object keeping track of all events
  */
-function processEventInfo(allEventData:any[]): [Map<any,any>, Map<any,any>, any[]] {
+function processEventInfo(allEventData: any[]): [Map<any, any>, Map<any, any>, any[]] {
   const assetEventMap = new Map();
   const locationMap = new Map();
   let productArr = [];
@@ -193,46 +197,46 @@ function processEventInfo(allEventData:any[]): [Map<any,any>, Map<any,any>, any[
       ...event['destination_location_ids'],
     ];
     locArr.forEach((location) => locationMap.set(location, undefined)); // default to undefined
-    
+
     event.epcs_ids.forEach((epc) => {
-      const product = retailer.getProductFromEpc(epc);
+      const product = getProductFromEpc(epc);
       if (product) {
         productArr.push(product.gtin);
       }
     });
     productArr = _.uniq(productArr);
-  })
-
+  });
   return [assetEventMap, locationMap, productArr];
 }
-
 
 /**
  * Populates CSVRow objects based on product information, then sends it
  * to generateIngredientCSVRows to be populated by the respective
  * ingredient information
- * 
+ *
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateProductCSVRows(productTrace:EPC[], data): CSVRow[] {
+function generateProductCSVRows(productTrace: EPC[], data): CSVRow[] {
   const rows: CSVRow[] = [];
   productTrace.forEach(trace => {
-    const productRow:CSVRow = new CSVRow();
+    const productRow: CSVRow = new CSVRow();
 
     productRow.set(ALL_HEADERS.productEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
-    let orgId, productData;
+    let orgId;
+    let productData;
 
-    let events = trace.events.map((event) => {
+    const events = trace.events.map((event) => {
       const eventInfo = data.events.get(event.asset_id);
       if (!!eventInfo) {
-        if (!orgId) orgId = eventInfo.org_id;
+        if (!orgId) {
+          orgId = eventInfo.org_id;
+        }
         return eventInfo;
-      } else {
-        return undefined;
       }
+      return undefined;
     }).filter((el) => !!el);
 
     // push potential parent epc event data
@@ -240,16 +244,17 @@ function generateProductCSVRows(productTrace:EPC[], data): CSVRow[] {
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
         const eventInfo = data.events.get(asset_id);
         if (!!eventInfo) {
-          if (!orgId) orgId = eventInfo.org_id;
+          if (!orgId) {
+            orgId = eventInfo.org_id;
+          }
           return eventInfo;
-        } else {
-          return undefined;
         }
+        return undefined;
       }).filter((el) => !!el));
     });
 
     // collect gtin and name information
-    const productGtinInfo = retailer.getProductFromEpc(trace.epc_id);
+    const productGtinInfo = getProductFromEpc(trace.epc_id);
     const products = data.products.filter((product) => {
       return (product.id === productGtinInfo.gtin);
     });
@@ -261,61 +266,70 @@ function generateProductCSVRows(productTrace:EPC[], data): CSVRow[] {
         });
       }
       productRow.set(ALL_HEADERS.productGTIN, (productData && productData.id) || (products[0] && products[0].id));
-      productRow.set(ALL_HEADERS.productName, (productData && productData.description) || (products[0] && products[0].description));
+      productRow.set(ALL_HEADERS.productName,
+                     (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event, populate row with event data
-    const {arrivalDate, locationId, locationName, locationType} = findFinalLocation(events, data.locations);
+    const { arrivalDate, locationId, locationName, locationType } = findFinalLocation(events, data.locations);
     productRow.set(ALL_HEADERS.arrivalDate, arrivalDate);
     productRow.set(ALL_HEADERS.finalLocationID, locationId);
     productRow.set(ALL_HEADERS.finalLocationName, locationName);
     productRow.set(ALL_HEADERS.finalLocationType, locationType);
-    
+
     // for each input, create a new CSV row
     const inputRows = [];
     inputRows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data));
-    
-    if (inputRows.length == 0) {
+
+    if (inputRows.length === 0) {
       // if there are no inputs, try to find the most upstream location of product
-      const {creationDate, locationId, locationName, locationType} = findSourceLocation(events, data.locations);
+      const {
+        creationDate,
+        locationId: sourceLocationID,
+        locationName: sourceLocationName,
+        locationType: sourceLocationType
+      } = findSourceLocation(events, data.locations);
+
       productRow.set(ALL_HEADERS.creationDate, creationDate);
-      productRow.set(ALL_HEADERS.sourceLocationID, locationId);
-      productRow.set(ALL_HEADERS.sourceLocationName, locationName);
-      productRow.set(ALL_HEADERS.sourceLocationType, locationType);
+      productRow.set(ALL_HEADERS.sourceLocationID, sourceLocationID);
+      productRow.set(ALL_HEADERS.sourceLocationName, sourceLocationName);
+      productRow.set(ALL_HEADERS.sourceLocationType, sourceLocationType);
       rows.push(productRow);
     } else {
       rows.push(...inputRows);
     }
   });
-    
+
   return rows;
 }
 
 /**
  * Takes the productRow as a template, then populates it with ingredient specific informaiton
- * 
+ *
  * @param productRow base row with populated information of the product
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateIngredientCSVRows(productRow:CSVRow, productTrace:EPC[], data): CSVRow[] {
+function generateIngredientCSVRows(productRow: CSVRow, productTrace: EPC[], data): CSVRow[] {
   const rows: CSVRow[] = [];
   productTrace.forEach(trace => {
-    const ingredientRow:CSVRow = productRow.copy();
+    const ingredientRow: CSVRow = productRow.copy();
 
     ingredientRow.set(ALL_HEADERS.ingredientEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
-    let orgId, productData;
+    let orgId;
+    let productData;
 
-    let events = trace.events.map((event) => {
+    const events = trace.events.map((event) => {
       const eventInfo = data.events.get(event.asset_id);
       if (!!eventInfo) {
-        if (!orgId) orgId = eventInfo.org_id;
+        if (!orgId) {
+          orgId = eventInfo.org_id;
+        }
         return eventInfo;
-      } else {
-        return undefined;
       }
+      return undefined;
     }).filter((el) => !!el);
 
     // push potential parent epc event data
@@ -323,16 +337,17 @@ function generateIngredientCSVRows(productRow:CSVRow, productTrace:EPC[], data):
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
         const eventInfo = data.events.get(asset_id);
         if (!!eventInfo) {
-          if (!orgId) orgId = eventInfo.org_id;
+          if (!orgId) {
+            orgId = eventInfo.org_id;
+          }
           return eventInfo;
-        } else {
-          return undefined;
         }
+        return undefined;
       }).filter((el) => !!el));
     });
 
     // collect gtin and name information
-    const productGtinInfo = retailer.getProductFromEpc(trace.epc_id);
+    const productGtinInfo = getProductFromEpc(trace.epc_id);
     const products = data.products.filter((product) => {
       return (product.id === productGtinInfo.gtin);
     });
@@ -344,56 +359,58 @@ function generateIngredientCSVRows(productRow:CSVRow, productTrace:EPC[], data):
         });
       }
       ingredientRow.set(ALL_HEADERS.ingredientGTIN, (productData && productData.id) || (products[0] && products[0].id));
-      ingredientRow.set(ALL_HEADERS.ingredientName, (productData && productData.description) || (products[0] && products[0].description));
+      ingredientRow.set(ALL_HEADERS.ingredientName,
+                        (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event
-    const {creationDate, locationId, locationName, locationType} = findSourceLocation(events, data.locations);
+    const { creationDate, locationId, locationName, locationType } = findSourceLocation(events, data.locations);
     ingredientRow.set(ALL_HEADERS.creationDate, creationDate);
     ingredientRow.set(ALL_HEADERS.sourceLocationID, locationId);
     ingredientRow.set(ALL_HEADERS.sourceLocationName, locationName);
     ingredientRow.set(ALL_HEADERS.sourceLocationType, locationType);
-    
+
     rows.push(ingredientRow);
 
     // recurse up tree
     rows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data));
   });
-    
+
   return rows;
 }
-
 
 /**
  * Selects a final location for an EPC based on its events and the event type
  * based on: retailer.getLocationInfo
- * 
+ *
  * @param events list of events
  * @param locationMap master location data mapping location id to location data
  */
 function findFinalLocation(events, locationMap): {arrivalDate, locationId, locationName, locationType} {
-  if (!events || events.length == 0) return {
-    arrivalDate:null,
-    locationId:null,
-    locationName:null,
-    locationType:null
-  };
-  // const locations: Object[] = [];
+  if (!events || events.length === 0) {
+    return {
+      arrivalDate : null,
+      locationId : null,
+      locationName : null,
+      locationType : null
+    };
+  }
+
   const tieBreaker = [
-    "BREEDER",
-    "FARMER",
-    "GROWER",
-    "FARM",
-    "SUPPLIER",
-    "DISTRIBUTION_CENTER",
-    "STORE",
+    'BREEDER',
+    'FARMER',
+    'GROWER',
+    'FARM',
+    'SUPPLIER',
+    'DISTRIBUTION_CENTER',
+    'STORE',
   ];
 
   // determine latest event
   const finalEvent = events.reduce((event1, event2) => {
     const event_time1 = new Date(event1.event_time);
     const event_time2 = new Date(event2.event_time);
-    
+
     return (event_time1 > event_time2) ? event1 : event2;
   });
 
@@ -410,7 +427,7 @@ function findFinalLocation(events, locationMap): {arrivalDate, locationId, locat
   }).reduce((loc1, loc2) => { // reduce to a single location
     const ind1 = tieBreaker.indexOf(loc1.locationType);
     const ind2 = tieBreaker.indexOf(loc2.locationType);
-    return (ind1 > ind2) ? loc1: loc2 ;
+    return (ind1 > ind2) ? loc1 : loc2 ;
   });
 
   return finalLocation;
@@ -419,43 +436,44 @@ function findFinalLocation(events, locationMap): {arrivalDate, locationId, locat
 /**
  * Selects a source location for an EPC based on its events and the event type
  * based on: retailer.getLocationInfo
- * 
+ *
  * @param events list of events
  * @param locationMap master location data mapping location id to location data
  */
 function findSourceLocation(events, locationMap) {
-  if (!events || events.length == 0) return {
-    creationDate:null,
-    locationId:null,
-    locationName:null,
-    locationType:null
-  };
+  if (!events || events.length === 0) {
+    return {
+      creationDate : null,
+      locationId : null,
+      locationName : null,
+      locationType : null
+    };
+  }
 
   const locTieBreaker = [
-    "STORE",
-    "DISTRIBUTION_CENTER",
-    "SUPPLIER",
-    "FARM",
-    "FARMER",
-    "GROWER",
-    "BREEDER",
+    'STORE',
+    'DISTRIBUTION_CENTER',
+    'SUPPLIER',
+    'FARM',
+    'FARMER',
+    'GROWER',
+    'BREEDER',
   ];
-  const eventTieBreaker = ["aggregation", "observation", "commission"];
-  
+  const eventTieBreaker = ['aggregation', 'observation', 'commission'];
+
   // determine source event
   const firstEvent = events.reduce((event1, event2) => {
     const event_time1 = new Date(event1.event_time);
     const event_time2 = new Date(event2.event_time);
     if (event_time1 < event_time2) {
       return event1;
-    } else if (event_time1 > event_time2) {
+    } if (event_time1 > event_time2) {
       return event2;
-    } else {
-      // evaluate on an index using event tiebreaker values.
-      const ind1 = eventTieBreaker.indexOf(event1.event_type);
-      const ind2 = eventTieBreaker.indexOf(event2.event_type);
-      return (ind1 > ind2) ? event1: event2;
     }
+    // evaluate on an index using event tiebreaker values.
+    const ind1 = eventTieBreaker.indexOf(event1.event_type);
+    const ind2 = eventTieBreaker.indexOf(event2.event_type);
+    return (ind1 > ind2) ? event1 : event2;
   });
 
   // determine source location from source event
@@ -472,7 +490,7 @@ function findSourceLocation(events, locationMap) {
     // evaluate on an index using location tiebreaker values.
     const ind1 = locTieBreaker.indexOf(loc1.locationType);
     const ind2 = locTieBreaker.indexOf(loc2.locationType);
-    return (ind1 > ind2) ? loc1: loc2;
+    return (ind1 > ind2) ? loc1 : loc2;
   });
 
   return sourceLocation;
