@@ -5,26 +5,26 @@ info:
   description: |
     # Authorization to use the IFT Recall Assistant API
     The IFT Recall Assistant APIs allow callers to determine the impact of a recall, specifying a location where a recall is initiated from, a list of GTINs harvested at that location, and a date range for harvest.
-    
+
     Given that information, there are endpoints to determine:
     * EPCs harvested
     * EPCs impacted (including products with harvested EPCs as ingredients)
     * Purchase orders and Despatch advice IDs associated with shipments of any impacted EPCs
     * EPCs & locations of any ingredients used in the final product(s) searched
-    
+
     # Authorization to use the IFT Recall Assistant API
-    
-    Only authorized users with a <b>registered IBMid</b> can make IBM Food Trust&trade; API calls. If necessary, contact your IBM Food Trust Organization Administrator for authorization to use this API. 
-    
+
+    Only authorized users with a <b>registered IBMid</b> can make IBM Food Trust&trade; API calls. If necessary, contact your IBM Food Trust Organization Administrator for authorization to use this API.
+
     Authenticate with your registered IBMid, as follows:
-    
+
     1. Open the [IBM Blockchain Solution Manager](https://food.ibm.com/ift/api/identity-proxy/login) page in a new tab or window.
     2. Log in with your IBMid, and if necessary, select your Organization.
     3. Click **Copy** to copy the User Token.
     4. Return to this page and click the green **Authorize** button on the lower right.
-    5. In the **Available authorizations** dialog, paste your copied User Token into the **Value** field. 
+    5. In the **Available authorizations** dialog, paste your copied User Token into the **Value** field.
     6. Click **Authorize** and **Close**.
-    
+
     You are now authorized to use this API. For subsequent sessions, repeat the steps above to obtain a new User Token.
 
 servers:
@@ -39,6 +39,7 @@ paths:
         - $ref: '#/components/parameters/productId'
         - $ref: '#/components/parameters/eventStartTimestamp'
         - $ref: '#/components/parameters/eventEndTimestamp'
+        - $ref: '#/components/parameters/output'
       responses:
         '200':
           description: OK
@@ -51,6 +52,7 @@ paths:
         - $ref: '#/components/parameters/productId'
         - $ref: '#/components/parameters/eventStartTimestamp'
         - $ref: '#/components/parameters/eventEndTimestamp'
+        - $ref: '#/components/parameters/output'
       responses:
         '200':
           description: OK
@@ -63,6 +65,7 @@ paths:
         - $ref: '#/components/parameters/productId'
         - $ref: '#/components/parameters/eventStartTimestamp'
         - $ref: '#/components/parameters/eventEndTimestamp'
+        - $ref: '#/components/parameters/output'
       responses:
         '200':
           description: OK
@@ -123,6 +126,6 @@ components:
         type: string
     string:
       type: string
-      
+
 security:
   - bearerAuth: []

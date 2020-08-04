@@ -194,10 +194,7 @@ export function processResponse(responseList: any[], eventType: string) {
   responseList.forEach((responseJSON: any) => {
     responseJSON.events.forEach((event) => {
       if (eventType === 'aggregation') {
-        // Loop through transactions on each event to get ids
-        event.transaction_ids.forEach((transaction) => {
-          ids = [...ids, transaction.id];
-        });
+        ids = [...ids, ...event.transaction_ids];
       } else if (eventType === 'transformation') {
         event.output_quantities.forEach((output) => {
           ids = [...ids, output.epc_id];
@@ -592,4 +589,22 @@ function calcCheckDigit(s: string): number {
     result = result + parseInt(rs.charAt(counter), 10) * Math.pow(3, ((counter + 1) % 2));
   }
   return (10 - (result % 10)) % 10;
+}
+
+/**
+ * Returns product info (name, gtin) from epc
+ *
+ * @param epc EPC string
+ */
+export function getProductFromEpc(epc: string) {
+  let product;
+  if (epc && ((epc.indexOf(constants.URN_GS1_SGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_IFT_SGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_PAT_SGTIN) >= 0))) {
+    product = getSGTIN(epc);
+  } else if (epc && ((epc.indexOf(constants.URN_GS1_LGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_IFT_LGTIN) >= 0))) {
+    product = getLGTIN(epc);
+  }
+  return product;
 }
