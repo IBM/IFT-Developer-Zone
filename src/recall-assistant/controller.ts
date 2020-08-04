@@ -4,10 +4,14 @@ import * as _ from 'lodash';
 import {
   getEpcs,
   getTransformOutputEpcs,
-  getTransactions,
+  getTransactions
+} from './ift-service';
+
+import {
   formatEPCtoCSV,
   formatTransactiontoCSV
-} from './ift-service';
+} from './format';
+
 import { getSourceEPCData } from './retailer-actions';
 
 import { getIngredientSources } from './ingredient-sources';

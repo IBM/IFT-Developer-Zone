@@ -3,30 +3,11 @@ import * as rp from 'request-promise-native';
 import * as _ from 'lodash';
 
 import * as ift_service from './ift-service';
+import * as format from './format';
 import {
   processParentAssets,
   EPC
 } from './retailer-actions';
-
-/**
- * Reducing the values in here reduces output viewed in csv output
- */
-const INGREDIENT_CSV_HEADERS = [
-  ift_service.constants.ALL_HEADERS.productEPC,
-  ift_service.constants.ALL_HEADERS.productName,
-  ift_service.constants.ALL_HEADERS.productGTIN,
-  ift_service.constants.ALL_HEADERS.finalLocationID,
-  ift_service.constants.ALL_HEADERS.finalLocationName,
-  ift_service.constants.ALL_HEADERS.finalLocationType,
-  ift_service.constants.ALL_HEADERS.arrivalDate,
-  ift_service.constants.ALL_HEADERS.ingredientEPC,
-  ift_service.constants.ALL_HEADERS.ingredientName,
-  ift_service.constants.ALL_HEADERS.ingredientGTIN,
-  ift_service.constants.ALL_HEADERS.sourceLocationID,
-  ift_service.constants.ALL_HEADERS.sourceLocationName,
-  ift_service.constants.ALL_HEADERS.sourceLocationType,
-  ift_service.constants.ALL_HEADERS.creationDate,
-];
 
 /**
  * very similar to getSourceEPCData
@@ -37,7 +18,7 @@ const INGREDIENT_CSV_HEADERS = [
  *
  * @returns [headers[], content[]]
  */
-export async function getIngredientSources(req): Promise<[string[], ift_service.CSVRow[]]> {
+export async function getIngredientSources(req): Promise<[string[], format.CSVRow[]]> {
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
 
   if (lotsAndSerials && lotsAndSerials.length > 50) {
@@ -46,7 +27,7 @@ export async function getIngredientSources(req): Promise<[string[], ift_service.
       []
     ];
   } if (!lotsAndSerials || lotsAndSerials.length === 0) {
-    return [INGREDIENT_CSV_HEADERS, []];
+    return [format.INGREDIENT_CSV_HEADERS, []];
   }
 
   const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
@@ -64,7 +45,7 @@ export async function getIngredientSources(req): Promise<[string[], ift_service.
     traceData.forEach(productTrace => {
       assets.push(...processParentAssets(productTrace, parentAssetMap));
     });
-  } else { return [INGREDIENT_CSV_HEADERS, []]; }
+  } else { return [format.INGREDIENT_CSV_HEADERS, []]; }
 
   assets = _.uniq(assets);
 
@@ -89,12 +70,12 @@ export async function getIngredientSources(req): Promise<[string[], ift_service.
     parents: parentAssetMap
   };
 
-  const csv_rows: ift_service.CSVRow[] = [];
+  const csv_rows: format.CSVRow[] = [];
 
   csv_rows.push(...generateProductCSVRows(traceData, masterData));
 
   return [
-    INGREDIENT_CSV_HEADERS,
+    format.INGREDIENT_CSV_HEADERS,
     csv_rows
   ];
 
@@ -160,12 +141,12 @@ function processEventInfo(allEventData: any[]): [Map<any, any>, Map<any, any>, a
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateProductCSVRows(productTrace: EPC[], data): ift_service.CSVRow[] {
-  const rows: ift_service.CSVRow[] = [];
+function generateProductCSVRows(productTrace: EPC[], data): format.CSVRow[] {
+  const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
-    const productRow: ift_service.CSVRow = new ift_service.CSVRow(INGREDIENT_CSV_HEADERS);
+    const productRow: format.CSVRow = new format.CSVRow(format.INGREDIENT_CSV_HEADERS);
 
-    productRow.set(ift_service.constants.ALL_HEADERS.productEPC, trace.epc_id);
+    productRow.set(format.ALL_HEADERS.finishedProductEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
     let orgId;
@@ -208,18 +189,18 @@ function generateProductCSVRows(productTrace: EPC[], data): ift_service.CSVRow[]
           return (product.org_id === orgId);
         });
       }
-      productRow.set(ift_service.constants.ALL_HEADERS.productGTIN,
+      productRow.set(format.ALL_HEADERS.finishedProductGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      productRow.set(ift_service.constants.ALL_HEADERS.productName,
+      productRow.set(format.ALL_HEADERS.finishedProductName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event, populate row with event data
     const { arrivalDate, locationId, locationName, locationType } = findFinalLocation(events, data.locations);
-    productRow.set(ift_service.constants.ALL_HEADERS.arrivalDate, arrivalDate);
-    productRow.set(ift_service.constants.ALL_HEADERS.finalLocationID, locationId);
-    productRow.set(ift_service.constants.ALL_HEADERS.finalLocationName, locationName);
-    productRow.set(ift_service.constants.ALL_HEADERS.finalLocationType, locationType);
+    productRow.set(format.ALL_HEADERS.arrivalDate, arrivalDate);
+    productRow.set(format.ALL_HEADERS.finalLocationID, locationId);
+    productRow.set(format.ALL_HEADERS.finalLocationName, locationName);
+    productRow.set(format.ALL_HEADERS.finalLocationType, locationType);
 
     // for each input, create a new CSV row
     const inputRows = [];
@@ -234,10 +215,10 @@ function generateProductCSVRows(productTrace: EPC[], data): ift_service.CSVRow[]
         locationType: sourceLocationType
       } = findSourceLocation(events, data.locations);
 
-      productRow.set(ift_service.constants.ALL_HEADERS.creationDate, creationDate);
-      productRow.set(ift_service.constants.ALL_HEADERS.sourceLocationID, sourceLocationID);
-      productRow.set(ift_service.constants.ALL_HEADERS.sourceLocationName, sourceLocationName);
-      productRow.set(ift_service.constants.ALL_HEADERS.sourceLocationType, sourceLocationType);
+      productRow.set(format.ALL_HEADERS.creationDate, creationDate);
+      productRow.set(format.ALL_HEADERS.sourceLocationID, sourceLocationID);
+      productRow.set(format.ALL_HEADERS.sourceLocationName, sourceLocationName);
+      productRow.set(format.ALL_HEADERS.sourceLocationType, sourceLocationType);
       rows.push(productRow);
     } else {
       rows.push(...inputRows);
@@ -254,13 +235,13 @@ function generateProductCSVRows(productTrace: EPC[], data): ift_service.CSVRow[]
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateIngredientCSVRows(productRow: ift_service.CSVRow,
-                                   productTrace: EPC[], data): ift_service.CSVRow[] {
-  const rows: ift_service.CSVRow[] = [];
+function generateIngredientCSVRows(productRow: format.CSVRow,
+                                   productTrace: EPC[], data): format.CSVRow[] {
+  const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
-    const ingredientRow: ift_service.CSVRow = productRow.copy();
+    const ingredientRow: format.CSVRow = productRow.copy();
 
-    ingredientRow.set(ift_service.constants.ALL_HEADERS.ingredientEPC, trace.epc_id);
+    ingredientRow.set(format.ALL_HEADERS.ingredientEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
     let orgId;
@@ -303,18 +284,18 @@ function generateIngredientCSVRows(productRow: ift_service.CSVRow,
           return (product.org_id === orgId);
         });
       }
-      ingredientRow.set(ift_service.constants.ALL_HEADERS.ingredientGTIN,
+      ingredientRow.set(format.ALL_HEADERS.ingredientGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      ingredientRow.set(ift_service.constants.ALL_HEADERS.ingredientName,
+      ingredientRow.set(format.ALL_HEADERS.ingredientName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event
     const { creationDate, locationId, locationName, locationType } = findSourceLocation(events, data.locations);
-    ingredientRow.set(ift_service.constants.ALL_HEADERS.creationDate, creationDate);
-    ingredientRow.set(ift_service.constants.ALL_HEADERS.sourceLocationID, locationId);
-    ingredientRow.set(ift_service.constants.ALL_HEADERS.sourceLocationName, locationName);
-    ingredientRow.set(ift_service.constants.ALL_HEADERS.sourceLocationType, locationType);
+    ingredientRow.set(format.ALL_HEADERS.creationDate, creationDate);
+    ingredientRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
+    ingredientRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
+    ingredientRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
 
     rows.push(ingredientRow);
 
