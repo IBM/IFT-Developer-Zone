@@ -25,6 +25,22 @@ export interface EventInfo {
   transactions: any;
 }
 
+/**
+ * result from trace (productTrace) schema
+ */
+export interface EPC {
+  epc_id: string;
+  parent_epcs: EPC[];
+  input_epcs: EPC[];
+  output_epcs: EPC[];
+  child_epcs: EPC[];
+  events: Event[];
+}
+
+export interface Event {
+  asset_id: string;
+}
+
 export interface Location {
   locationId: string;
   locationName: string;
@@ -34,6 +50,7 @@ export interface Location {
 
 const eventsMap = new Map();
 const locationMap = new Map();
+const parentAssetMap = {};
 let productArray = [];
 const transactionsMap = {
   po: new Map(),
@@ -54,18 +71,21 @@ export async function getSourceEPCData(req) {
   // If the number of lots and serials are greater than 50 (for the moment), ask the user to narrow the
   // search using the date filters
   if (lotsAndSerials && lotsAndSerials.length > 50) {
-    return('Dataset returned is too large. Try narrowing your search using the date filters.');
-  } else if (!lotsAndSerials || lotsAndSerials.length == 0) return [];
+    return ('Dataset returned is too large. Try narrowing your search using the date filters.');
+  } if (!lotsAndSerials || lotsAndSerials.length === 0) {
+    return [];
+  }
 
   // 2) trace upstream on all epcs from step 1
-  const traceData = await ift_service.runTrace(req, lotsAndSerials, {upstream: true, downstream:false});
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
 
   // 3) Extract all the assestIDs from all the trace results
   const epcTraceMap = new Map();
   let assets = [];
   if (traceData && traceData.length > 0) {
     traceData.forEach(setOfEvents => {
-      const traceMap = ift_service.getEpcEventsMapFromTrace(setOfEvents);
+      assets.push(...processParentAssets(setOfEvents, parentAssetMap));
+      const traceMap = ift_service.getEpcEventsMapFromTrace(setOfEvents, parentAssetMap);
       epcTraceMap.set(setOfEvents.epc_id, traceMap);
       assets.push(...getAssetList(traceMap));
     });
@@ -118,6 +138,35 @@ export async function getSourceEPCData(req) {
 }
 
 /**
+ * processes the parent EPCs since if a parent EPC shows up twice,
+ * it only shows the information once in the product trace, we will
+ * create a map to hold the information
+ *
+ * @param productTrace trace result of the product
+ * @param parentAssets map keeping track of parent.epc_id --> associated asset ids/events
+ */
+export function processParentAssets(productTrace: EPC, parentAssets: {}): string[] {
+  const assetIDs: string[] = [];
+  if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
+    productTrace.parent_epcs.forEach(parent => {
+      const assets = parentAssets[parent.epc_id] || [];
+      assets.push(...parent.events.map((event) => event.asset_id).filter((el) => !!el));
+
+      parentAssets[parent.epc_id] = _.uniq(assets);
+      assetIDs.push(...assets);
+    });
+  }
+
+  if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
+    productTrace.input_epcs.forEach(input_product => {
+      assetIDs.push(...processParentAssets(input_product, parentAssets));
+    });
+  }
+
+  return assetIDs;
+}
+
+/**
  * Method to return the formatted output
  */
 export function formatOutput(epcTraceMap) {
@@ -133,7 +182,7 @@ export function formatOutput(epcTraceMap) {
     prodInfo.epcId = tracedData.outputs.epc_id;
     const [eventArr, orgId] = getFormattedEventsArray(tracedData.outputs.events);
     // get product Gtin from epc
-    const productGtinInfo = getProductFromEpc(tracedData.outputs.epc_id);
+    const productGtinInfo = ift_service.getProductFromEpc(tracedData.outputs.epc_id);
     const products = productMasterData.filter((product) => {
       return (product.id === productGtinInfo.gtin);
     });
@@ -160,7 +209,7 @@ export function formatOutput(epcTraceMap) {
       inputProdInfo.epcId = input.epc_id;
       const [inputEventArr, inputEventOrgId] = getFormattedEventsArray(input.events);
       // get product Gtin from epc
-      const inputProductGtinInfo = getProductFromEpc(input.epc_id);
+      const inputProductGtinInfo = ift_service.getProductFromEpc(input.epc_id);
 
       const inputProducts = productMasterData.filter((product) => {
         return (product.id === inputProductGtinInfo.gtin);
@@ -176,7 +225,8 @@ export function formatOutput(epcTraceMap) {
           });
         }
         inputProdInfo.productGtin = (inputPData && inputPData.id) || (inputProducts[0] && inputProducts[0].id);
-        inputProdInfo.productName = (inputPData && inputPData.description) || (inputProducts[0] && inputProducts[0].description);
+        inputProdInfo.productName = (inputPData && inputPData.description)
+          || (inputProducts[0] && inputProducts[0].description);
       }
 
       inputProdInfo.eventInfo = inputEventArr;
@@ -216,7 +266,7 @@ function processEventData(eventData) {
     // });
 
     event.epcs_ids.forEach((epc) => {
-      const product = getProductFromEpc(epc);
+      const product = ift_service.getProductFromEpc(epc);
       if (product) {
         productArray.push(product.gtin);
       }
@@ -264,9 +314,9 @@ function getLocationInfo(locations): Location[] {
     if (locData) {
       locArray.push({
         locationId: loc,
-        locationName: locData.party_name,
-        locationType: locData.party_role_code,
-        locationOwner: locData.org_id
+        locationName: locData ? locData.party_name : undefined,
+        locationType: locData ? locData.party_role_code : undefined,
+        locationOwner: locData ? locData.org_id : undefined
       });
     }
   });
@@ -290,19 +340,6 @@ function getTransactionInfo(transactions) {
   return transArray;
 }
 
-export function getProductFromEpc(epc: string) {
-  let product;
-  if (epc && ((epc.indexOf(ift_service.constants.URN_GS1_SGTIN) >= 0) ||
-    (epc.indexOf(ift_service.constants.URN_IFT_SGTIN) >= 0) ||
-    (epc.indexOf(ift_service.constants.URN_PAT_SGTIN) >= 0))) {
-    product = ift_service.getSGTIN(epc);
-  } else if (epc && ((epc.indexOf(ift_service.constants.URN_GS1_LGTIN) >= 0) ||
-    (epc.indexOf(ift_service.constants.URN_IFT_LGTIN) >= 0))) {
-    product = ift_service.getLGTIN(epc);
-  }
-  return product;
-}
-
 /**
  * Return a formatted events array
  */
@@ -312,13 +349,14 @@ function getFormattedEventsArray(eventList) {
   eventList.forEach((event) => {
     const eventInfo = eventsMap.get(event.asset_id);
     if (eventInfo) {
-      orgId =  eventInfo.org_id;
+      orgId = eventInfo.org_id;
       // Get the shipping and transaction info
-      if (eventInfo.event_type === "commission") { // If commission, display only source location, else display
+      const bizLocation = locationMap.get(eventInfo.biz_location_id);
+      if (eventInfo.event_type === 'commission') { // If commission, display only source location, else display
         eventArr.push({
           bizStep: eventInfo.biz_step,
           eventDate: eventInfo.event_time,
-          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          eventLocation: bizLocation ? bizLocation.party_name : undefined,
           sourceLocation: getLocationInfo(eventInfo.source_location_ids),
           transactions: getTransactionInfo(eventInfo.transaction_ids)
         });
@@ -326,7 +364,7 @@ function getFormattedEventsArray(eventList) {
         eventArr.push({
           bizStep: eventInfo.biz_step,
           eventDate: eventInfo.event_time,
-          eventLocation: (locationMap.get(eventInfo.biz_location_id)).party_name,
+          eventLocation: bizLocation ? bizLocation.party_name : undefined,
           sourceLocation: getLocationInfo(eventInfo.source_location_ids),
           destinationLocation: getLocationInfo(eventInfo.destination_location_ids),
           transactions: getTransactionInfo(eventInfo.transaction_ids)
@@ -339,23 +377,25 @@ function getFormattedEventsArray(eventList) {
 
 /**
  * Checks equality for two arrays of location ids
- * 
+ *
  * uses sets: if number of locations is high and order is irrelevant
  * then set logic will be faster
- * 
+ *
  * @param a First array
  * @param b Second array
  */
 function locationEquals(a, b) {
-  if (!a || !b) return false;
-  if (a === b) return true;
+  if (!a || !b) { return false; }
+  if (a === b) { return true; }
 
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) { return false; }
 
   const aSet = new Set(a);
   const bSet = new Set(b);
 
-  for (let item of aSet) if (!bSet.has(item)) return false;
+  for (const item of aSet) {
+    if (!bSet.has(item)) { return false; }
+  }
 
   return true;
 

@@ -44,14 +44,17 @@ export function getTraceConstraintParameters(location_id: string,
 /**
  * Splits rp call into pages by constants.PAGE_SIZE
  * and returns the entire list as one
- * 
+ *
  * @param options options for rp call
  * @param traceParameters parameters for call to IFT API
  * @param pageURI function that produces the URI for each page
  */
-function paginate_rp(options, traceParameters: any[], pageURI: Function, pageSize: number = constants.PAGE_SIZE): Promise<any> {
+function paginate_rp(options,
+                     traceParameters: any[],
+                     pageURI: Function,
+                     pageSize: number = constants.PAGE_SIZE): Promise<any> {
   const promiseList = [];
-  let params = [...traceParameters];
+  const params = [...traceParameters];
   // loop through the epcs 30 or PAGE_SIZE at a time and make the event api calls
   while (params.length > 0) {
     const pagedParams = params.splice(0, pageSize);
@@ -69,7 +72,7 @@ function paginate_rp(options, traceParameters: any[], pageURI: Function, pageSiz
     console.error(`Error getting EPCs from relevant events: ${err}`);
     throw err;
   });
-};
+}
 
 // Find EPCs commissioned at a particular location for particular products within a time range
 export async function getEpcs(req) {
@@ -120,7 +123,6 @@ export async function getTransformOutputEpcs(req, inputEpcs: string[]) {
     uri: '',
     method: 'GET',
   };
-  let pagedEPC: string[] = [];
 
   if (inputEpcs && Array.isArray(inputEpcs) && inputEpcs.length > 0) {
     inputEpcs.forEach(id => {
@@ -135,9 +137,9 @@ export async function getTransformOutputEpcs(req, inputEpcs: string[]) {
       const eventCallUriParamWithEPC = `${pagedEPC && pagedEPC.length > 0 ? `&epc_id[]=${pagedEPC.join('&epc_id[]=')}` : ''}`;
       const eventsCallUri = `${config.ift_url}/events?event_type[]=transformation${eventCallUriParamWithEPC}`;
       console.info(`Trace call to get tranformations from impacted EPCs: ${eventsCallUri}`);
-      //   /* Example: https://food.ibm.com/ift/api/outbound/v2/events?event_type[]=transformation&event_start_timestamp=
-      //      2019-11-15&epc_id[]=urn%3Aibm%3Aift%3Aproduct%3Alot%3Aclass%3A1953084565871.APJj.2322&epc_id[]=urn%3Aibm%3A
-      //      ift%3Aproduct%3Alot%3Aclass%3A1953084565871.pFOa.2131212 */
+      /* Example: https://food.ibm.com/ift/api/outbound/v2/events?event_type[]=transformation&event_start_timestamp=
+          2019-11-15&epc_id[]=urn%3Aibm%3Aift%3Aproduct%3Alot%3Aclass%3A1953084565871.APJj.2322&epc_id[]=urn%3Aibm%3A
+          ift%3Aproduct%3Alot%3Aclass%3A1953084565871.pFOa.2131212 */
       return eventsCallUri;
     }));
   }
@@ -148,7 +150,6 @@ export async function getTransformOutputEpcs(req, inputEpcs: string[]) {
 
 // Find all aggregations where the input EPCs are children, and return referenced transactions
 export async function getTransactions(req, inputEpcs: string[]) {
-  let pagedEPC: string[] = [];
   const epcIds: string[] = [];
   const eventsList = [];
   const options = {
@@ -170,7 +171,7 @@ export async function getTransactions(req, inputEpcs: string[]) {
     });
 
     // loop through the epcs 30 or PAGE_SIZE at a time
-    
+
     eventsList.push(...await paginate_rp(options, epcIds, (pagedEPC) => {
       // form the URL and make the calls
       const eventCallUriParamWithEPC = `${pagedEPC && pagedEPC.length > 0 ? `&epc_id[]=${pagedEPC.join('&epc_id[]=')}` : ''}`;
@@ -193,10 +194,7 @@ export function processResponse(responseList: any[], eventType: string) {
   responseList.forEach((responseJSON: any) => {
     responseJSON.events.forEach((event) => {
       if (eventType === 'aggregation') {
-        // Loop through transactions on each event to get ids
-        event.transaction_ids.forEach((transaction) => {
-          ids = [...ids, transaction.id];
-        });
+        ids = [...ids, ...event.transaction_ids];
       } else if (eventType === 'transformation') {
         event.output_quantities.forEach((output) => {
           ids = [...ids, output.epc_id];
@@ -244,7 +242,7 @@ export async function getProductLotsAndSerials(req) {
 
 // Get all the aggregation/observation events for given lots and serials
 // TODO: make it more generic to support other types
-export async function getEvents(req, inputAssetIds: string[], eventTypes:string[]=["commission", "aggregation", "observation"], bizSteps?: string[]) {
+export async function getEvents(req, inputAssetIds: string[], eventTypes: string[]= ['commission', 'aggregation', 'observation'], bizSteps?: string[]) {
   const eventsList = [];
   const options = {
     headers: {
@@ -269,7 +267,7 @@ export async function getEvents(req, inputAssetIds: string[], eventTypes:string[
       // const eventEndTimeParams = getTraceConstraintParameters('', [], '', req.query.event_end_timestamp);
       // Since we want to filter by commission time, no need to filter by event_end_timestamp here
       const eventEndTimeParams = '';
-      const eventCallUri = `${config.ift_url}/events?${(!(!!eventTypes && eventTypes.length > 0)) ? "":`event_type[]=${eventTypes.join("&event_type[]=")}`}${
+      const eventCallUri = `${config.ift_url}/events?${(!(eventTypes && eventTypes.length)) ? '' : `event_type[]=${eventTypes.join('&event_type[]=')}`}${
         eventCallUriParamWithAssets}${eventBizStep}${eventEndTimeParams}`;
       console.info(`Trace call to get all events from asset ids: ${eventCallUri}`);
 
@@ -277,8 +275,8 @@ export async function getEvents(req, inputAssetIds: string[], eventTypes:string[
     }));
   }
 
-  return (!(eventsList && eventsList.length > 0)) ? []: eventsList.map((responseJSON) => responseJSON.events)
-                                                                  .reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(eventsList && eventsList.length > 0)) ? [] : eventsList.map((responseJSON) => responseJSON.events)
+                                                                   .reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 // Run a trace on all EPC's and return the asset id's
@@ -326,7 +324,7 @@ export async function runTrace(req,
  * Method to call location API to fetch location data
  */
 export async function getLocationsData(req, locationIds: any[]) {
-  let locations: any[] = [];
+  const locations: any[] = [];
   const options = {
     headers: {
       'Content-Type': 'application/json',
@@ -340,24 +338,25 @@ export async function getLocationsData(req, locationIds: any[]) {
   if (locationIds && locationIds.length > 0) {
     // loop through the locationIds 30 or PAGE_SIZE at a time
 
-    locations.push(...await paginate_rp(options, locationIds, (locations) => {
+    locations.push(...await paginate_rp(options, locationIds, (pagedLocations) => {
       // form the URL and make the calls
-      const locationsUri = `${config.ift_url}/locations?${locations && locations.length > 0
-        ? `location_id[]=${locations.join('&location_id[]=')}` : ''}`;
+      const locationsUri = `${config.ift_url}/locations?${pagedLocations && pagedLocations.length > 0
+        ? `location_id[]=${pagedLocations.join('&location_id[]=')}` : ''}`;
       console.info(`Trace call to get location data: ${locationsUri}`);
 
       return locationsUri;
     }));
   }
-  
-  return (!(!!locations && locations.length > 0)) ? []:locations.map((responseJSON) => responseJSON.locations).reduce((arr1, arr2) => [...arr1, ...arr2]);
+
+  return (!(locations && locations.length)) ? [] : locations.map((responseJSON) => responseJSON.locations)
+                                                            .reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 /**
  * Method to call the Products API and fetch product information
  */
 export async function getProductsData(req, productIds) {
-  let products: any[] = [];
+  const products: any[] = [];
   const options = {
     headers: {
       'Content-Type': 'application/json',
@@ -371,10 +370,10 @@ export async function getProductsData(req, productIds) {
   if (productIds && Array.isArray(productIds) && productIds.length > 0) {
     // loop through the productIds 30 or PAGE_SIZE at a time
 
-    products.push(...await paginate_rp(options, productIds, (products) => {
+    products.push(...await paginate_rp(options, productIds, (pagedProducts) => {
       // form the URL and make the calls
-      const productUri = `${config.ift_url}/products?${products && products.length > 0
-        ? `product_id[]=${products.join('&product_id=')}` : ''}`;
+      const productUri = `${config.ift_url}/products?${pagedProducts && pagedProducts.length > 0
+        ? `product_id[]=${pagedProducts.join('&product_id=')}` : ''}`;
       console.info(`Trace call to get product data: ${productUri}`);
 
       // Used for epcs with special chars in it like '+', but it doesnt work
@@ -382,43 +381,58 @@ export async function getProductsData(req, productIds) {
       return productUri;
     }));
   }
-  return (!(!!products && products.length > 0)) ? []: products.map((responseJSON) => responseJSON.products).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(products && products.length)) ? [] : products.map((responseJSON) => responseJSON.products)
+                                                         .reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 // Method to get all the epcEvent mapping from the traced response
-export function getEpcEventsMapFromTrace(traceResponse): {} {
+export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
   const epcEventMap = { outputs: {} , inputs: [{}] };
   epcEventMap.outputs = {
     epc_id : traceResponse.epc_id,
     // events: traceResponse.events
     events: traceResponse.events.filter((event) => {
-      return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
+      return (event.asset_id.includes('observation')
+              || event.asset_id.includes('aggregation')
+              || event.asset_id.includes('commission'));
     })
   };
-  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
+  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs, parentAssetMap);
   return epcEventMap;
 }
 
 // Recursively loop through the EPC tree to get all events
-export function getUpstreamEventsAndEPCs(epcs) {
+export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
   if (!(epcs && epcs.length)) {
     return [];
   }
 
-  return (!(epcs && epcs.length > 0)) ? []: epcs.reduce((allEvents, epc) => { // foreach in the list do the following
+  return (!(epcs && epcs.length > 0)) ? [] : epcs.reduce((allEvents, epc) => { // foreach in the list do the following
+
     if (epc.input_epcs.length > 0) {
       // if there exist input epcs, traverse further in the tree
       allEvents.push(...this.getUpstreamEventsAndEPCs(epc.input_epcs));
-    } else {
-      // if there are no more inputs, return the edge events
-      allEvents.push({
-        epc_id : epc.epc_id,
-        // events: epc.events
-        events: epc.events.filter((event) => {
-          return (event.asset_id.includes('observation') || event.asset_id.includes('aggregation') || event.asset_id.includes('commission'));
-        })
+    }
+
+    // NOTE: since we will be processing all intermediate ingredients as well,
+    // this will also be run for those cases.
+    const parentEvents = [];
+    if (epc.parent_epcs && epc.parent_epcs.length > 0) {
+      epc.parent_epcs.forEach(parent => {
+        parentEvents.push(...parent.events);
       });
     }
+
+    allEvents.push({
+      epc_id : epc.epc_id,
+      // events: epc.events
+      events: [...parentEvents, ...epc.events].filter((event) => {
+        return (event.asset_id.includes('observation')
+                || event.asset_id.includes('aggregation')
+                || event.asset_id.includes('commission'));
+      })
+    });
+
     return allEvents;
   }, []);
 }
@@ -429,7 +443,7 @@ export async function getTransactionsData(req, transactionIds, type) {
     return; // return if no type or transaction list is passed.
   }
 
-  let transactions: any[] = [];
+  const transactions: any[] = [];
   const options = {
     headers: {
       'Content-Type': 'application/json',
@@ -442,26 +456,26 @@ export async function getTransactionsData(req, transactionIds, type) {
 
   if (transactionIds && Array.isArray(transactionIds) && transactionIds.length > 0) {
     // loop through the locationIds 30 or PAGE_SIZE at a time
-    transactions.push(...await paginate_rp(options, transactionIds, (transactions) => {
+    transactions.push(...await paginate_rp(options, transactionIds, (pagedTransactions) => {
       // form the URL and make the calls
       const transactionsUri = `${config.ift_url}/transactions/${
       type && type === 'PO' ? 'purchase_orders' : type === 'DA' ? 'despatch_advices' : type === 'RA' ? 'receive_advices' : '' }?${
-      transactions && transactions.length > 0 ? `transaction_id[]=${transactions.join('&transaction_id[]=')}` : ''}`;
+      pagedTransactions && pagedTransactions.length > 0 ? `transaction_id[]=${pagedTransactions.join('&transaction_id[]=')}` : ''}`;
       console.info(`Trace call to get transaction PO data: ${transactionsUri}`);
       return transactionsUri;
     }));
   }
 
-  return (!(transactions && transactions.length > 0)) ? []: transactions.map((dataObj) => {
-      if (type === 'PO') {
-        return dataObj.purchase_orders;
-      } else if (type === 'DA') {
-        return dataObj.despatch_advices;
-      } else if (type === 'RA') {
-        return dataObj.receive_advices;
-      }
-      return [];
-    }).reduce((arr1, arr2) => [...arr1, ...arr2]);
+  return (!(transactions && transactions.length > 0)) ? [] : transactions.map((dataObj) => {
+    if (type === 'PO') {
+      return dataObj.purchase_orders;
+    }  if (type === 'DA') {
+      return dataObj.despatch_advices;
+    } if (type === 'RA') {
+      return dataObj.receive_advices;
+    }
+    return [];
+  }).reduce((arr1, arr2) => [...arr1, ...arr2]);
 }
 
 // get LGTIN using epcClass
@@ -575,4 +589,22 @@ function calcCheckDigit(s: string): number {
     result = result + parseInt(rs.charAt(counter), 10) * Math.pow(3, ((counter + 1) % 2));
   }
   return (10 - (result % 10)) % 10;
+}
+
+/**
+ * Returns product info (name, gtin) from epc
+ *
+ * @param epc EPC string
+ */
+export function getProductFromEpc(epc: string) {
+  let product;
+  if (epc && ((epc.indexOf(constants.URN_GS1_SGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_IFT_SGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_PAT_SGTIN) >= 0))) {
+    product = getSGTIN(epc);
+  } else if (epc && ((epc.indexOf(constants.URN_GS1_LGTIN) >= 0) ||
+    (epc.indexOf(constants.URN_IFT_LGTIN) >= 0))) {
+    product = getLGTIN(epc);
+  }
+  return product;
 }

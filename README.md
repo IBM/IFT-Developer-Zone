@@ -18,6 +18,9 @@ This returns a list of EPCs that contain ingredients harvested from a particular
 ### impacted-transactions
 This returns a list of transaction identifiers (purchase order IDs and despatch advice IDs) that contain ingredients that were harvested from a particular location within a particular timeframe, for a set of GTINs.  This assumes that the harvested EPCs were transformed directly into other EPCs (or were never transformed), and does not attempt to handle multiple layers of transformation, or aggregations into transformations.  It also assumes that the impacted EPCs are shipped to a partner as a child of an aggregation event and that the transaction IDs are referenced on that event.
 
+### ingredient-sources
+This returns a list of products with their final locations alongside their ingredients and the source locations for each of the ingredients.  This will make assumptions about the overall flow of products (it will assume a `STORE` is a more likely final location than a `FARM`, and the reverse for source locations).  In CSV format, it will also limit the final/source locations to a single location each, sorted by timestamp and by the assumption described previously.
+
 # Usage
 1) Clone the code locally
 2) Nagigate to the top level, and execute:
