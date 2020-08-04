@@ -66,9 +66,9 @@ export const ALL_HEADERS = {
 };
 
 export const PRODUCT_CSV_HEADERS = [
-  ALL_HEADERS.finishedProductEPC,
-  ALL_HEADERS.finishedProductName,
-  ALL_HEADERS.finishedProductGTIN,
+  ALL_HEADERS.productEPC,
+  ALL_HEADERS.productName,
+  ALL_HEADERS.productGTIN,
 ];
 
 export const TRANSACTION_CSV_HEADERS = [

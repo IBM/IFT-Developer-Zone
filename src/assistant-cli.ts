@@ -1,9 +1,11 @@
 import { getEpcs, getTransformOutputEpcs, getTransactions } from './recall-assistant/ift-service';
 import { getSourceEPCData } from './recall-assistant/retailer-actions';
 
-import { getIngredientSources } from "./recall-assistant/ingredient-sources";
+import { getIngredientSources } from './recall-assistant/ingredient-sources';
+import { formatEPCtoCSV, formatTransactiontoCSV } from './recall-assistant/format';
 
-const fs = require("fs");
+import * as _ from 'lodash';
+const fs = require('fs');
 
 const helpString = `
 ==IFT Recall Assistant CLI==
@@ -24,52 +26,92 @@ optional arguments:
 `;
 
 interface CallParameters {
-  endpoint: string,
-  bearer: string,
-  outputFile: string,
-  query: {}
+  endpoint: string;
+  bearer: string;
+  outputFile: string;
+  query: {};
 }
 
+const harvestedEPCs = async (req) => {
+  const harvestedEpcs = await getEpcs(req);
+
+  if ((req.query['output'] || 'CSV').trim().toUpperCase() === 'CSV') {
+    return formatEPCtoCSV(req, harvestedEpcs);
+  }
+  return harvestedEpcs;
+};
+
+const impactedEPCs = async (req) => {
+  const harvestedEpcs = await getEpcs(req);
+  // In addition to the harvested EPCs, find any products that these were transformed into as
+  // these are also impacted by any recall
+  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
+
+  if ((req.query['output'] || 'CSV').trim().toUpperCase() === 'CSV') {
+    return formatEPCtoCSV(req, totalEpcs);
+  }
+  return totalEpcs;
+};
+
+const impactedTransactions = async (req) => {
+  const harvestedEpcs = await getEpcs(req);
+  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
+  // From the list of bad EPCs (harvested or produced), find aggregations that reference transactions
+  // (purchase orders and despatch advice documents)
+  const data = await getTransactions(req, totalEpcs);
+
+  if ((req.query['output'] && req.query['output'].trim().toUpperCase()) === 'JSON') {
+    return data.map(transaction => transaction.id);
+  }
+  return formatTransactiontoCSV(data);
+};
+
 const availableEndpoints = {
-  "harvested-epcs": getEpcs,
-  "impacted-epcs": getTransformOutputEpcs,
-  "impacted-transactions": getTransactions,
-  "ingredient-sources": null,
+  CSV: {
+    'harvested-epcs': harvestedEPCs,
+    'impacted-epcs': impactedEPCs,
+    'impacted-transactions': impactedTransactions,
+    'ingredient-sources': getSourceEPCData,
+  },
+  JSON: {
+    'harvested-epcs': getEpcs,
+    'impacted-epcs': impactedEPCs,
+    'impacted-transactions': harvestedEPCs,
+    'ingredient-sources': getIngredientSources,
+  }
 };
 
 const arrayParams = [
-  "product_id",
-  "location_id"
+  'product_id',
+  'location_id'
 ];
 
-
-
-const parseArgs = (args: string[]):CallParameters => {
+const parseArgs = (args: string[]): CallParameters => {
   const params: CallParameters = <CallParameters>{};
   const userArgs = {};
 
   // print help string and exit
-  if (!args || !args.length || args.includes("-h") || args.includes("--help")) {
+  if (!args || !args.length || args.includes('-h') || args.includes('--help')) {
     console.info(helpString);
     process.exit();
   } else {
     params.endpoint = args[0];
-    if (!Object.keys(availableEndpoints).includes(params.endpoint)) {
+    if (!Object.keys(availableEndpoints.CSV).includes(params.endpoint)) {
       throw new Error(`Invalid Endpoint: ${params.endpoint}`);
     }
 
-    let key = "";
-    for(let i = 1; i < args.length; i++) {
-      if (args[i] == "-b" || args[i] == "--bearer") {
-        key = "bearer";
-      } else if (args[i].startsWith("--")) {
+    let key = '';
+    for (let i = 1; i < args.length; i += 1) {
+      if (args[i] === '-b' || args[i] === '--bearer') {
+        key = 'bearer';
+      } else if (args[i].startsWith('--')) {
         // set the key whenever an argument passed starts with '--'
         key = args[i].slice(2);
       } else {
         // if there is no previous value, set key --> value
         // if there is a previous value, and it is an array, push
         // if there is a previous value, and it is not an array, make it an array then push
-        let v = userArgs[key];
+        const v = userArgs[key];
         if (!v) {
           userArgs[key] = args[i];
         } else {
@@ -84,58 +126,56 @@ const parseArgs = (args: string[]):CallParameters => {
 
     // Certain params must appear as arrays
     arrayParams.forEach((param) => {
-      let arg = userArgs[param];
+      const arg = userArgs[param];
       if (arg && !Array.isArray(arg)) {
         userArgs[param] = [arg];
       }
     });
 
-    params.bearer = userArgs["bearer"];
-    params.outputFile = userArgs["outputFile"];
+    params.bearer = userArgs['bearer'];
+    params.outputFile = userArgs['outputFile'];
 
     if (!params.bearer) {
-      throw new Error("Authentication Error: Must provide a bearer token");
+      throw new Error('Authentication Error: Must provide a bearer token');
     }
-
     params.query = userArgs;
-    
   }
 
   return params;
-}
+};
 
 const handleHTTPError = (error) => {
-  if (error['name'] === "StatusCodeError") {
-    // actually already handled in the stack
+  if (error['name'] === 'StatusCodeError') {
     console.error(error['statusCode']);
-    console.error(error["error"]);
-    process.exit();
   }
-}
+  console.error(error['error']);
+  process.exit();
+};
 
 const printCSV = (csvResponse) => {
   const [csv_headers, csv_rows] = csvResponse;
 
   // print headers
-  let headerString = (csv_headers as string[]).map((value) => {
-    return value ? value.toString().replace(/"/g, "\"\""): ""
+  const headerString = (csv_headers as string[]).map((value) => {
+    return value ? value.toString().replace(/"/g, '""') : '';
   });
 
   // print body
-  let bodyString = (csv_rows as any[]).map((row) => {
+  const bodyString = (csv_rows as any[]).map((row) => {
     return row.toString();
-  }).join("\n");
+  }).join('\n');
 
-  const resString = `"${headerString}"\n${bodyString}`;
+  const resString = `'${headerString}'\n${bodyString}`;
   return resString;
-}
+};
 
 const save = (path, content) => {
   fs.writeFile(path, content, (err) => {
-    if (err) throw err;
+    if (err) {
+      throw err;
+    }
   });
-}
-
+};
 
 if (require.main === module) {
   const args: string[] = process.argv.slice(2);
@@ -149,46 +189,34 @@ if (require.main === module) {
     query: params.query
   };
 
-  let endpoint = availableEndpoints[params.endpoint];
   console.log(params.endpoint);
-  let resString = "";
+
+  const format = (req.query['output'] || 'CSV').trim().toUpperCase();
+  const endpoint = availableEndpoints[format] && availableEndpoints[format][params.endpoint];
+
+  let resString: string;
+
   if (endpoint) {
-    endpoint(req).then((response) => {
-      if (!req.query["output"] || req.query["output"].toUpperCase() === "JSON") {
-        resString = JSON.stringify(response, null, 2);
-      } else if (req.query["output"].toUpperCase() === "CSV") {
-        resString = printCSV(response);
+    endpoint(req).catch(handleHTTPError).then((response) => {
+      switch (format) {
+        case 'JSON':
+          resString = JSON.stringify(response, null, 2);
+          break;
+        case 'CSV':
+          resString = printCSV(response);
+          break;
+        default:
+          resString = 'd';
       }
+      console.log('test1');
       if (params.outputFile) {
         save(params.outputFile, resString);
       } else {
-        console.log("Result:");
+        console.log('Result:');
         console.log(resString);
       }
-    }).catch(handleHTTPError);
+    });
   } else {
-    // we need to treat ingredient-sources differently since
-    // it has two different methods handling it
-    if (!req.query["output"] || req.query["output"].toUpperCase() === "JSON") {
-      getSourceEPCData(req).then((jsonResponse) => {
-        resString = JSON.stringify(jsonResponse, null, 2);
-        if (params.outputFile) {
-          save(params.outputFile, resString);
-        } else {
-          console.log("Result:");
-          console.log(resString);
-        }
-      }).catch(handleHTTPError);
-    } else if (req.query["output"].toUpperCase() === "CSV") {
-      getIngredientSources(req).then((csvResponse) => {
-        resString = printCSV(csvResponse);
-        if (params.outputFile) {
-          save(params.outputFile, resString);
-        } else {
-          console.log("Result:");
-          console.log(resString);
-        }
-      }).catch(handleHTTPError);
-    }
+    throw new Error(`Unsupported endpoint "\\${params.endpoint}" with filetype "${format}"`);
   }
 }
