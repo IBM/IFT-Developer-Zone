@@ -13,17 +13,43 @@ usage: node ${require.main.filename} endpoint [-h] [-b BEARER] [--outputFile PAT
 usage: npm run cli -- endpoint [-h] [-b BEARER] [--outputFile PATH] [--** [PARAM]]
 
 arguments:
-  endpoint              the endpoint to make a call to (e.g. harvested-epcs)
+  endpoint                the endpoint to make a call to (e.g. harvested-epcs)
 
 optional arguments:
-  -h, --help            show this help message and exit
-  -b, --bearer BEARER   the bearer authentication token for IFT
-  --outputFile PATH     path to the file you want to save the output to (if
-                        not provided, will print to console)
-  --** PARAM            any parameters to pass to the endpoint call
-                        if multiple values per parameter, provide space
-                        separated values
+  -h, --help              show this help message and exit
+
+  -b, --bearer BEARER     the bearer authentication token for IFT
+
+  --outputFile PATH       path to the file you want to save the output to (if
+                          not provided, will print to console)
+
+  --** PARAM              any parameters to pass to the endpoint call
+                          if multiple values per parameter, provide space
+                          separated values
+Available PARAMs:
+  --product_id            restrict results to any of the GS1 GTINs (numeric) or
+                          IBM Food Trust Product Identifiers (URN) provided.
+                          maximum number of items is 30
+                          to provide more than 1: --product_id ** --product_id **
+
+  --location_id           restrict results to the specified GS1 GLN (numeric) or
+                          IBM Food Trust Location Identifier (URN) provided.
+                          to provide more than 1: --location_id ** --location_id **
+
+  --event_start_timestamp restrict results to records with an event timestamp on
+                          or after the timestamp (ISO 8601) provided, eg. 2019-11-15
+
+  --event_end_timestamp   restrict results to records with an event timestamp
+                          strictly before the timestamp (ISO 8601) provided, eg. 2019-11-30
+
+  --output                format of the output. Only "JSON" and "CSV" are
+                          provided. The default is "CSV"
 `;
+
+const arrayParams = [
+  'product_id',
+  'location_id'
+];
 
 interface CallParameters {
   endpoint: string;
@@ -71,20 +97,15 @@ const availableEndpoints = {
     'harvested-epcs': harvestedEPCs,
     'impacted-epcs': impactedEPCs,
     'impacted-transactions': impactedTransactions,
-    'ingredient-sources': getSourceEPCData,
+    'ingredient-sources': getIngredientSources,
   },
   JSON: {
-    'harvested-epcs': getEpcs,
+    'harvested-epcs': harvestedEPCs,
     'impacted-epcs': impactedEPCs,
-    'impacted-transactions': harvestedEPCs,
-    'ingredient-sources': getIngredientSources,
+    'impacted-transactions': impactedTransactions,
+    'ingredient-sources': getSourceEPCData,
   }
 };
-
-const arrayParams = [
-  'product_id',
-  'location_id'
-];
 
 const parseArgs = (args: string[]): CallParameters => {
   const params: CallParameters = <CallParameters>{};
@@ -158,14 +179,14 @@ const printCSV = (csvResponse) => {
   // print headers
   const headerString = (csv_headers as string[]).map((value) => {
     return value ? value.toString().replace(/"/g, '""') : '';
-  });
+  }).join('","');
 
   // print body
   const bodyString = (csv_rows as any[]).map((row) => {
     return row.toString();
   }).join('\n');
 
-  const resString = `'${headerString}'\n${bodyString}`;
+  const resString = `"${headerString}"\n${bodyString}`;
   return resString;
 };
 
@@ -173,6 +194,8 @@ const save = (path, content) => {
   fs.writeFile(path, content, (err) => {
     if (err) {
       throw err;
+    } else {
+      console.info(`Saved to: ${path}`);
     }
   });
 };
@@ -189,7 +212,7 @@ if (require.main === module) {
     query: params.query
   };
 
-  console.log(params.endpoint);
+  console.info(params.endpoint);
 
   const format = (req.query['output'] || 'CSV').trim().toUpperCase();
   const endpoint = availableEndpoints[format] && availableEndpoints[format][params.endpoint];
@@ -208,12 +231,11 @@ if (require.main === module) {
         default:
           resString = 'd';
       }
-      console.log('test1');
       if (params.outputFile) {
         save(params.outputFile, resString);
       } else {
-        console.log('Result:');
-        console.log(resString);
+        console.info('Result:');
+        console.info(resString);
       }
     });
   } else {
