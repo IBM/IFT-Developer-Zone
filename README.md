@@ -24,7 +24,16 @@ This returns a list of products with their final locations alongside their ingre
 # Usage
 1) Clone the code locally
 2) Nagigate to the top level, and execute:
-   - npm install
-   - npm run build
-   - npm run start
+   - `npm install`
+   - `npm run build`
+   - `npm run start`
 3) From your browser, open http://localhost:5474/ift/api-samples/recall-assistant/v1/swagger/
+
+There is also the option to use our command line interface
+1) Clone the code locally
+2) Nagigate to the top level, and execute:
+   - `npm install`
+   - `npm run build`
+3) Run either of the following commands to see the parameters available parameters
+   - `npm run cli -- -h`
+   - `node bin/assistant-cli.js -h`
