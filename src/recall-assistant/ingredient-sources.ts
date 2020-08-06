@@ -20,7 +20,6 @@ import {
  */
 export async function getIngredientSources(req): Promise<[string[], format.CSVRow[]]> {
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
-
   if (lotsAndSerials && lotsAndSerials.length > 50) {
     return [
       ['Error: Dataset returned is too large. Try narrowing your search using the date filters.'],

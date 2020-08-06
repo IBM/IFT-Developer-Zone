@@ -8,33 +8,35 @@ export const config = {
   port: 5474
 };
 
-const app = express();
-
-// Version Routers
 import { TraceAssistantRouter } from './recall-assistant/router';
+// Version Routers
 const baseUrl = '/ift/api-samples';
 
-// Configure recall assistant
-const recallAssistantPathV1 = `${baseUrl}/recall-assistant/v1`;
-app.use(recallAssistantPathV1, TraceAssistantRouter.getRouter());
-console.info(`Recall assistant v1 endpoints configured at ${recallAssistantPathV1}`);
-const swaggerPath = `${recallAssistantPathV1}/swagger`;
-app.use(`${swaggerPath}/`, express.static('static'));
-app.use(swaggerPath, swaggerUi.serve, swaggerUi.setup(
-  null,
-  {
-    swaggerOptions: {
-      url: './v1/swagger.yaml',
-    },
-    explorer: true,
-    // tslint:disable-next-line:max-line-length
-    customCss: `.info .description::before { content: "Service Version: ${process.env.npm_package_version}"; font-weight: bold; }`
-  }
-));
-console.info(`swagger configured at ${swaggerPath}`);
+if (require.main === module) {
+  const app = express();
 
-// Start server
-http.createServer(app).listen(config.port);
-console.info(`server is up at ${config.port}`);
+  // Configure recall assistant
+  const recallAssistantPathV1 = `${baseUrl}/recall-assistant/v1`;
+  app.use(recallAssistantPathV1, TraceAssistantRouter.getRouter());
+  console.info(`Recall assistant v1 endpoints configured at ${recallAssistantPathV1}`);
+  const swaggerPath = `${recallAssistantPathV1}/swagger`;
+  app.use(`${swaggerPath}/`, express.static('static'));
+  app.use(swaggerPath, swaggerUi.serve, swaggerUi.setup(
+    null,
+    {
+      swaggerOptions: {
+        url: './v1/swagger.yaml',
+      },
+      explorer: true,
+      // tslint:disable-next-line:max-line-length
+      customCss: `.info .description::before { content: "Service Version: ${process.env.npm_package_version}"; font-weight: bold; }`
+    }
+  ));
+  console.info(`swagger configured at ${swaggerPath}`);
 
-module.exports = {};
+  // Start server
+  http.createServer(app).listen(config.port);
+  console.info(`server is up at ${config.port}`);
+
+  module.exports = {};
+}
