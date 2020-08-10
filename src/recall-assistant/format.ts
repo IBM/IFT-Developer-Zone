@@ -63,6 +63,7 @@ export const ALL_HEADERS = {
   creationDate: 'Creation Date',
   transactionID: 'Transaction ID',
   transactionType: 'Transaction Type',
+  eventTime: 'Event Time'
 };
 
 export const PRODUCT_CSV_HEADERS = [
@@ -74,6 +75,10 @@ export const PRODUCT_CSV_HEADERS = [
 export const TRANSACTION_CSV_HEADERS = [
   ALL_HEADERS.transactionID,
   ALL_HEADERS.transactionType,
+  ALL_HEADERS.productEPC,
+  ALL_HEADERS.productName,
+  ALL_HEADERS.productGTIN,
+  ALL_HEADERS.eventTime
 ];
 
 /**
@@ -148,8 +153,11 @@ export async function formatEPCtoCSV(req, EPCs: string[]): Promise<[string[], CS
  *
  * @param transactions transactions to format into csv
  */
-export function formatTransactiontoCSV(transactions: { id: string, type: string }[]): [string[], CSVRow[]] {
+export async function formatTransactiontoCSV(transactions, req): Promise<[string[], CSVRow[]]> {
   const rows: CSVRow[] = [];
+  const tRows: CSVRow[] = [];
+
+  const product_info = [];
 
   if (!!transactions) {
     transactions.forEach(transaction => {
@@ -162,12 +170,61 @@ export function formatTransactiontoCSV(transactions: { id: string, type: string 
         row.set(ALL_HEADERS.transactionType, 'DA');
       } else if (transaction.type.includes(':recadv')) {
         row.set(ALL_HEADERS.transactionType, 'RA');
-      } else {
-        console.log(transaction.type);
       }
-      rows.push(row);
+
+      row.set(ALL_HEADERS.eventTime, transaction.event_time);
+
+      if (transaction.epc_ids && transaction.epc_ids.length > 0) {
+        for (const epc_id of transaction.epc_ids) {
+          const product_row = row.copy();
+
+          product_row.set(ALL_HEADERS.productEPC, epc_id);
+
+          product_info.push({
+            epc: epc_id,
+            product: getProductFromEpc(epc_id)
+          });
+          rows.push(product_row);
+        }
+      } else {
+        rows.push(row);
+      }
     });
+
+    const all_products = await getProductsData(req,
+      _.uniq(product_info.filter(p => !!p.product).map(p => p.product.gtin)));
+
+    const productsDict = {};
+    product_info.forEach((product) => {
+      productsDict[product.epc] = (product.product && product.product.gtin) || undefined;
+    });
+
+    for (const row of rows) {
+      const product = productsDict[row.get(ALL_HEADERS.productEPC) as string];
+
+      if (product) {
+        const products = all_products.filter((p) => {
+          return p.id === product;
+        });
+
+        if (products.length > 0) {
+          products.forEach(p => {
+            const tRow = row.copy();
+
+            tRow.set(ALL_HEADERS.productName, (p && p.description) || '');
+            tRow.set(ALL_HEADERS.productGTIN, (p && p.id) || '');
+
+            tRows.push(tRow);
+          });
+        } else {
+          tRows.push(row);
+        }
+      } else {
+        tRows.push(row);
+      }
+    }
+
   }
 
-  return [TRANSACTION_CSV_HEADERS, rows];
+  return [TRANSACTION_CSV_HEADERS, _.uniq(tRows)];
 }

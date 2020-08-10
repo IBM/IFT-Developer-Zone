@@ -1,8 +1,9 @@
-import { getEpcs, getTransformOutputEpcs, getTransactions } from './recall-assistant/ift-service';
-import { getSourceEPCData } from './recall-assistant/retailer-actions';
-
-import { getIngredientSources } from './recall-assistant/ingredient-sources';
-import { formatEPCtoCSV, formatTransactiontoCSV } from './recall-assistant/format';
+import {
+  harvestedEPCs,
+  impactedEPCs,
+  impactedTransactions,
+  ingredientSources
+} from './recall-assistant/endpoints';
 
 import * as _ from 'lodash';
 const fs = require('fs');
@@ -58,53 +59,16 @@ interface CallParameters {
   query: {};
 }
 
-const harvestedEPCs = async (req) => {
-  const harvestedEpcs = await getEpcs(req);
-
-  if ((req.query['output'] || 'CSV').trim().toUpperCase() === 'CSV') {
-    return formatEPCtoCSV(req, harvestedEpcs);
-  }
-  return harvestedEpcs;
-};
-
-const impactedEPCs = async (req) => {
-  const harvestedEpcs = await getEpcs(req);
-  // In addition to the harvested EPCs, find any products that these were transformed into as
-  // these are also impacted by any recall
-  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
-
-  if ((req.query['output'] || 'CSV').trim().toUpperCase() === 'CSV') {
-    return formatEPCtoCSV(req, totalEpcs);
-  }
-  return totalEpcs;
-};
-
-const impactedTransactions = async (req) => {
-  const harvestedEpcs = await getEpcs(req);
-  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
-  // From the list of bad EPCs (harvested or produced), find aggregations that reference transactions
-  // (purchase orders and despatch advice documents)
-  const data = await getTransactions(req, totalEpcs);
-
-  if ((req.query['output'] && req.query['output'].trim().toUpperCase()) === 'JSON') {
-    return data.map(transaction => transaction.id);
-  }
-  return formatTransactiontoCSV(data);
-};
+const supportedFormats = [
+  'CSV',
+  'JSON'
+];
 
 const availableEndpoints = {
-  CSV: {
-    'harvested-epcs': harvestedEPCs,
-    'impacted-epcs': impactedEPCs,
-    'impacted-transactions': impactedTransactions,
-    'ingredient-sources': getIngredientSources,
-  },
-  JSON: {
-    'harvested-epcs': harvestedEPCs,
-    'impacted-epcs': impactedEPCs,
-    'impacted-transactions': impactedTransactions,
-    'ingredient-sources': getSourceEPCData,
-  }
+  'harvested-epcs': harvestedEPCs,
+  'impacted-epcs': impactedEPCs,
+  'impacted-transactions': impactedTransactions,
+  'ingredient-sources': ingredientSources
 };
 
 const parseArgs = (args: string[]): CallParameters => {
@@ -117,9 +81,6 @@ const parseArgs = (args: string[]): CallParameters => {
     process.exit();
   } else {
     params.endpoint = args[0];
-    if (!Object.keys(availableEndpoints.CSV).includes(params.endpoint)) {
-      throw new Error(`Invalid Endpoint: ${params.endpoint}`);
-    }
 
     let key = '';
     for (let i = 1; i < args.length; i += 1) {
@@ -215,30 +176,34 @@ if (require.main === module) {
   console.info(params.endpoint);
 
   const format = (req.query['output'] || 'CSV').trim().toUpperCase();
-  const endpoint = availableEndpoints[format] && availableEndpoints[format][params.endpoint];
+  const endpoint = availableEndpoints[params.endpoint];
 
   let resString: string;
 
-  if (endpoint) {
-    endpoint(req).catch(handleHTTPError).then((response) => {
-      switch (format) {
-        case 'JSON':
-          resString = JSON.stringify(response, null, 2);
-          break;
-        case 'CSV':
-          resString = printCSV(response);
-          break;
-        default:
-          resString = 'd';
-      }
-      if (params.outputFile) {
-        save(params.outputFile, resString);
-      } else {
-        console.info('Result:');
-        console.info(resString);
-      }
-    });
-  } else {
-    throw new Error(`Unsupported endpoint "\\${params.endpoint}" with filetype "${format}"`);
+  if (!supportedFormats.includes(format)) {
+    throw new Error(`Unsupported format "${format}"`);
   }
+
+  if (!endpoint) {
+    throw new Error(`Invalid Endpoint: ${endpoint}`);
+  }
+
+  endpoint(req).catch(handleHTTPError).then((response) => {
+    switch (format) {
+      case 'JSON':
+        resString = JSON.stringify(response, null, 2);
+        break;
+      case 'CSV':
+        resString = printCSV(response);
+        break;
+      default:
+        resString = 'd';
+    }
+    if (params.outputFile) {
+      save(params.outputFile, resString);
+    } else {
+      console.info('Result:');
+      console.info(resString);
+    }
+  });
 }
