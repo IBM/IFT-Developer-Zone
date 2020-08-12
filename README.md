@@ -1,13 +1,13 @@
 Welcome to the IBM Food Trust&trade; Developer Zone!
 
 # IFT Developer Documentation
-You will find documentation on our WIKI.
+You will find documentation for IFT development on our WIKI.
 
-# IFT API Examples
-The code in this repository is intended to be a collection of code examples that exemplify the capabilities of the IBM Food Trust APIs.
+# IBM Trace API Extensions
+The code in this repository is intended to be a collection of code examples that exemplify the capabilities of the IBM Blockchain Transparent Supply Trace API.
 
-## Recall Assistant
-The recall assistant is an application that demonstrates how to use the Trace API's events endpoint to help determine useful information in the event of a recall stemming from a source location.  This is only an example as it presents assumptions about data that may not apply to all supply chains.  Currently it also does not implement paging so will only work with data amounts that do not require paging.  It services three endpoints:
+## Recall Scenarios
+The following are code examples that demonstrates how to use the Trace API's events endpoint to help determine useful information in the event of a recall stemming from a source location.  This is only an example as it presents assumptions about data that may not apply to all supply chains.
 
 ### harvested-epcs
 This returns a list of EPCs that were harvested from a particular location within a particular timeframe, for a set of GTINs.
