@@ -5,7 +5,8 @@ import {
   harvestedEPCs,
   impactedEPCs,
   impactedTransactions,
-  ingredientSources
+  ingredientSources,
+  productDestinations
 } from './endpoints';
 
 import { CSVRow } from './format';
@@ -122,6 +123,41 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
     const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
     res.status(200).header('Content-Type', 'text/csv');
     res.header('Content-Disposition', `attachment; filename="ingredient_source-${Date.now()}.csv"`);
+
+    writeCSVtoResponse(res, csv_headers, csv_rows);
+
+    res.end();
+    return res;
+  }
+  if (format.trim().toUpperCase() === 'JSON') {
+    return res.status(200).json(data);
+  }
+
+  return res.status(400).json({
+    status: 'bad request, invalid value for "output"; should be either "JSON" or "CSV"'
+  });
+});
+
+/**
+ * Provides location information on the ingredients of each provided
+ * product restricted by event time and start dates.
+ *
+ * Returns either a text/csv or an application/json response.
+ */
+export const getProductDestinationsHandler: express.RequestHandler = catchAsync(async (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const data = await productDestinations(req);
+
+  // handle different data output types
+  const format: string = req.query.output as string;
+
+  if (!format || format.trim().toUpperCase() === 'CSV') {
+    const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
+    res.status(200).header('Content-Type', 'text/csv');
+    res.header('Content-Disposition', `attachment; filename="product_destinations-${Date.now()}.csv"`);
 
     writeCSVtoResponse(res, csv_headers, csv_rows);
 

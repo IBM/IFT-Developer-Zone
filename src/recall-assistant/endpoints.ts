@@ -47,3 +47,10 @@ export const ingredientSources = async (req) => {
   }
   return getSourceEPCData(req);
 };
+
+export const productDestinations = async (req) => {
+  if ((req.query['output'] || 'CSV').trim().toUpperCase() === 'CSV') {
+    return getIngredientSources(req, { upstream: false, downstream: true });
+  }
+  return getSourceEPCData(req, { upstream: false, downstream: true });
+};

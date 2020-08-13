@@ -410,7 +410,23 @@ export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
               || event.asset_id.includes('commission'));
     })
   };
-  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs, parentAssetMap);
+
+  const parentEvents = [];
+  if (traceResponse.parent_epcs && traceResponse.parent_epcs.length > 0) {
+    traceResponse.parent_epcs.forEach(parent => {
+      parentEvents.push(...parent.events);
+    });
+  }
+
+  epcEventMap.inputs.push(...parentEvents.filter((event) => {
+    return (event.asset_id.includes('observation')
+            || event.asset_id.includes('aggregation')
+            || event.asset_id.includes('commission'));
+  }));
+
+  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
+  epcEventMap.inputs.push(...this.getDownstreamEventsAndEPCs(traceResponse.output_epcs));
+
   return epcEventMap;
 }
 
@@ -425,6 +441,42 @@ export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
     if (epc.input_epcs.length > 0) {
       // if there exist input epcs, traverse further in the tree
       allEvents.push(...this.getUpstreamEventsAndEPCs(epc.input_epcs));
+    }
+
+    // NOTE: since we will be processing all intermediate ingredients as well,
+    // this will also be run for those cases.
+    const parentEvents = [];
+    if (epc.parent_epcs && epc.parent_epcs.length > 0) {
+      epc.parent_epcs.forEach(parent => {
+        parentEvents.push(...parent.events);
+      });
+    }
+
+    allEvents.push({
+      epc_id : epc.epc_id,
+      // events: epc.events
+      events: [...parentEvents, ...epc.events].filter((event) => {
+        return (event.asset_id.includes('observation')
+                || event.asset_id.includes('aggregation')
+                || event.asset_id.includes('commission'));
+      })
+    });
+
+    return allEvents;
+  }, []);
+}
+
+// Recursively loop through the EPC tree to get all events
+export function getDownstreamEventsAndEPCs(epcs) {
+  if (!(epcs && epcs.length)) {
+    return [];
+  }
+
+  return (!(epcs && epcs.length > 0)) ? [] : epcs.reduce((allEvents, epc) => { // foreach in the list do the following
+
+    if (epc.output_epcs.length > 0) {
+      // if there exist input epcs, traverse further in the tree
+      allEvents.push(...this.getDownstreamEventsAndEPCs(epc.output_epcs));
     }
 
     // NOTE: since we will be processing all intermediate ingredients as well,

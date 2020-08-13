@@ -7,6 +7,7 @@ import * as ift_service from './ift-service';
 export interface TraceOutput {
   productTraced: ProductInformation;
   inputEpcInfo: ProductInformation[];
+  outputEpcInfo: ProductInformation[];
 }
 
 export interface ProductInformation {
@@ -63,7 +64,9 @@ let productMasterData = [];
  * Scenario 1: Given a product and time range get all the epcs and the related data
  * @param req
  */
-export async function getSourceEPCData(req) {
+export async function getSourceEPCData(req,
+  direction: {upstream: boolean, downstream: boolean}
+   = { upstream: true, downstream: false }) {
   // 1) get all the epcs by lots_and_serials
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
 
@@ -77,7 +80,7 @@ export async function getSourceEPCData(req) {
   }
 
   // 2) trace upstream on all epcs from step 1
-  const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, direction);
 
   // 3) Extract all the assestIDs from all the trace results
   const epcTraceMap = new Map();
@@ -133,7 +136,7 @@ export async function getSourceEPCData(req) {
   raMasterData.forEach((ra) => transactionsMap.ra.set(ra.transaction_id, ra));
 
   // get formatted output
-  const output = formatOutput(epcTraceMap);
+  const output = formatOutput(epcTraceMap, direction);
   return output;
 }
 
@@ -145,8 +148,18 @@ export async function getSourceEPCData(req) {
  * @param productTrace trace result of the product
  * @param parentAssets map keeping track of parent.epc_id --> associated asset ids/events
  */
-export function processParentAssets(productTrace: EPC, parentAssets: {}): string[] {
+export function processParentAssets(productTrace: EPC, parentAssets: {},
+  direction: {upstream: boolean, downstream: boolean}
+   = { upstream: true, downstream: false }): string[] {
   const assetIDs: string[] = [];
+  let children;
+
+  if (direction.upstream) {
+    children = productTrace.input_epcs;
+  } else {
+    children = productTrace.output_epcs;
+  }
+
   if (!!productTrace.parent_epcs && productTrace.parent_epcs.length > 0) {
     productTrace.parent_epcs.forEach(parent => {
       const assets = parentAssets[parent.epc_id] || [];
@@ -157,9 +170,10 @@ export function processParentAssets(productTrace: EPC, parentAssets: {}): string
     });
   }
 
-  if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
-    productTrace.input_epcs.forEach(input_product => {
-      assetIDs.push(...processParentAssets(input_product, parentAssets));
+  // recurse through children of the tree (either input)
+  if (!!children && children.length > 0) {
+    children.forEach(child => {
+      assetIDs.push(...processParentAssets(child, parentAssets));
     });
   }
 
@@ -169,7 +183,9 @@ export function processParentAssets(productTrace: EPC, parentAssets: {}): string
 /**
  * Method to return the formatted output
  */
-export function formatOutput(epcTraceMap) {
+export function formatOutput(epcTraceMap,
+  direction: {upstream: boolean, downstream: boolean}
+   = { upstream: true, downstream: false }) {
   // form the response array
   const formattedOutputObj = [];
   let productData;
@@ -232,7 +248,11 @@ export function formatOutput(epcTraceMap) {
       inputProdInfo.eventInfo = inputEventArr;
       inputInfoArray.push(inputProdInfo);
     });
-    eachTraceOutput.inputEpcInfo = inputInfoArray;
+    if (direction.upstream) {
+      eachTraceOutput.inputEpcInfo = inputInfoArray;
+    } else {
+      eachTraceOutput.outputEpcInfo = inputInfoArray;
+    }
     formattedOutputObj.push(eachTraceOutput);
   });
   return formattedOutputObj;

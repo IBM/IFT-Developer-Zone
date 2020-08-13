@@ -5,7 +5,7 @@ import * as _ from 'lodash';
 import * as ift_service from './ift-service';
 import * as format from './format';
 import {
-  processParentAssets,
+  processParentAssets as processParentAssets,
   EPC
 } from './retailer-actions';
 
@@ -18,7 +18,9 @@ import {
  *
  * @returns [headers[], content[]]
  */
-export async function getIngredientSources(req): Promise<[string[], format.CSVRow[]]> {
+export async function getIngredientSources(req,
+  direction: {upstream: boolean, downstream: boolean}
+   = { upstream: true, downstream: false }): Promise<[string[], format.CSVRow[]]> {
   const lotsAndSerials = await ift_service.getProductLotsAndSerials(req);
   if (lotsAndSerials && lotsAndSerials.length > 50) {
     return [
@@ -29,11 +31,14 @@ export async function getIngredientSources(req): Promise<[string[], format.CSVRo
     return [format.INGREDIENT_CSV_HEADERS, []];
   }
 
-  const traceData = await ift_service.runTrace(req, lotsAndSerials, { upstream: true, downstream: false });
+  // TODO: needs to go downstream too
+  const traceData = await ift_service.runTrace(req, lotsAndSerials, direction);
 
-  // process event assets and parent assets
+  console.log(JSON.stringify(traceData, null, 2));
+
+  // process event assets and aggregation assets
   let assets = [];
-  const parentAssetMap = {};
+  const aggAssetMap = {};
 
   if (traceData && traceData.length > 0) {
     traceData.forEach(productTrace => {
@@ -42,7 +47,9 @@ export async function getIngredientSources(req): Promise<[string[], format.CSVRo
 
     // process parent assets
     traceData.forEach(productTrace => {
-      assets.push(...processParentAssets(productTrace, parentAssetMap));
+
+      // TODO: needs to go into children here instead of just parents
+      assets.push(...processParentAssets(productTrace, aggAssetMap, direction));
     });
   } else { return [format.INGREDIENT_CSV_HEADERS, []]; }
 
@@ -66,12 +73,12 @@ export async function getIngredientSources(req): Promise<[string[], format.CSVRo
     events: assetEventMap,
     locations: locationMap,
     products: productMasterData,
-    parents: parentAssetMap
+    parents: aggAssetMap
   };
 
   const csv_rows: format.CSVRow[] = [];
 
-  csv_rows.push(...generateProductCSVRows(traceData, masterData));
+  csv_rows.push(...generateProductCSVRows(traceData, masterData, direction));
 
   return [
     format.INGREDIENT_CSV_HEADERS,
@@ -95,6 +102,12 @@ function getAssetIDs(productTrace: EPC) {
 
   if (!!productTrace.input_epcs && productTrace.input_epcs.length > 0) {
     productTrace.input_epcs.forEach(input_product => {
+      assetIDs.push(...getAssetIDs(input_product));
+    });
+  }
+
+  if (!!productTrace.output_epcs && productTrace.output_epcs.length > 0) {
+    productTrace.output_epcs.forEach(input_product => {
       assetIDs.push(...getAssetIDs(input_product));
     });
   }
@@ -140,12 +153,15 @@ function processEventInfo(allEventData: any[]): [Map<any, any>, Map<any, any>, a
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateProductCSVRows(productTrace: EPC[], data): format.CSVRow[] {
+function generateProductCSVRows(productTrace: EPC[], data,
+  direction: {upstream: boolean, downstream: boolean}
+   = { upstream: true, downstream: false }): format.CSVRow[] {
   const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
     const productRow: format.CSVRow = new format.CSVRow(format.INGREDIENT_CSV_HEADERS);
 
-    productRow.set(format.ALL_HEADERS.finishedProductEPC, trace.epc_id);
+    productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductEPC
+                                      : format.ALL_HEADERS.ingredientEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
     let orgId;
@@ -162,6 +178,7 @@ function generateProductCSVRows(productTrace: EPC[], data): format.CSVRow[] {
       return undefined;
     }).filter((el) => !!el);
 
+    // TODO: Requires going into child epcs here too
     // push potential parent epc event data
     trace.parent_epcs.forEach((parent) => {
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
@@ -188,36 +205,55 @@ function generateProductCSVRows(productTrace: EPC[], data): format.CSVRow[] {
           return (product.org_id === orgId);
         });
       }
-      productRow.set(format.ALL_HEADERS.finishedProductGTIN,
+      productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductGTIN : format.ALL_HEADERS.ingredientGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      productRow.set(format.ALL_HEADERS.finishedProductName,
+      productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductName : format.ALL_HEADERS.ingredientName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event, populate row with event data
-    const { arrivalDate, locationId, locationName, locationType } = findFinalLocation(events, data.locations);
-    productRow.set(format.ALL_HEADERS.arrivalDate, arrivalDate);
-    productRow.set(format.ALL_HEADERS.finalLocationID, locationId);
-    productRow.set(format.ALL_HEADERS.finalLocationName, locationName);
-    productRow.set(format.ALL_HEADERS.finalLocationType, locationType);
+    const { eventDate, locationId, locationName, locationType }
+                    = (direction.upstream ? findFinalLocation : findSourceLocation)(events, data.locations);
+    if (direction.upstream) {
+      productRow.set(format.ALL_HEADERS.arrivalDate, eventDate);
+      productRow.set(format.ALL_HEADERS.finalLocationID, locationId);
+      productRow.set(format.ALL_HEADERS.finalLocationName, locationName);
+      productRow.set(format.ALL_HEADERS.finalLocationType, locationType);
+    } else if (direction.downstream) {
+      productRow.set(format.ALL_HEADERS.creationDate, eventDate);
+      productRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
+      productRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
+      productRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
+    }
 
     // for each input, create a new CSV row
     const inputRows = [];
-    inputRows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data));
+    if (direction.upstream) {
+      inputRows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data, direction));
+    } else if (direction.downstream) {
+      inputRows.push(...generateIngredientCSVRows(productRow, trace.output_epcs, data, direction));
+    }
 
     if (inputRows.length === 0) {
       // if there are no inputs, try to find the most upstream location of product
       const {
-        creationDate,
-        locationId: sourceLocationID,
-        locationName: sourceLocationName,
-        locationType: sourceLocationType
-      } = findSourceLocation(events, data.locations);
+        eventDate: eDate,
+        locationId: locId,
+        locationName: locName,
+        locationType: locType
+      } = (direction.upstream ? findSourceLocation : findFinalLocation)(events, data.locations);
 
-      productRow.set(format.ALL_HEADERS.creationDate, creationDate);
-      productRow.set(format.ALL_HEADERS.sourceLocationID, sourceLocationID);
-      productRow.set(format.ALL_HEADERS.sourceLocationName, sourceLocationName);
-      productRow.set(format.ALL_HEADERS.sourceLocationType, sourceLocationType);
+      if (direction.upstream) {
+        productRow.set(format.ALL_HEADERS.creationDate, eDate);
+        productRow.set(format.ALL_HEADERS.sourceLocationID, locId);
+        productRow.set(format.ALL_HEADERS.sourceLocationName, locName);
+        productRow.set(format.ALL_HEADERS.sourceLocationType, locType);
+      } else if (direction.downstream) {
+        productRow.set(format.ALL_HEADERS.arrivalDate, eDate);
+        productRow.set(format.ALL_HEADERS.finalLocationID, locId);
+        productRow.set(format.ALL_HEADERS.finalLocationName, locName);
+        productRow.set(format.ALL_HEADERS.finalLocationType, locType);
+      }
       rows.push(productRow);
     } else {
       rows.push(...inputRows);
@@ -235,12 +271,15 @@ function generateProductCSVRows(productTrace: EPC[], data): format.CSVRow[] {
  * @param data masterdata object
  */
 function generateIngredientCSVRows(productRow: format.CSVRow,
-                                   productTrace: EPC[], data): format.CSVRow[] {
+                                   productTrace: EPC[], data,
+                                   direction: {upstream: boolean, downstream: boolean}
+                                   = { upstream: true, downstream: false }): format.CSVRow[] {
   const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
     const ingredientRow: format.CSVRow = productRow.copy();
 
-    ingredientRow.set(format.ALL_HEADERS.ingredientEPC, trace.epc_id);
+    ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientEPC
+                                         : format.ALL_HEADERS.finishedProductEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
     let orgId;
@@ -258,6 +297,7 @@ function generateIngredientCSVRows(productRow: format.CSVRow,
     }).filter((el) => !!el);
 
     // push potential parent epc event data
+    // TODO: based on direction, go towards child epcs too
     trace.parent_epcs.forEach((parent) => {
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
         const eventInfo = data.events.get(asset_id);
@@ -283,23 +323,38 @@ function generateIngredientCSVRows(productRow: format.CSVRow,
           return (product.org_id === orgId);
         });
       }
-      ingredientRow.set(format.ALL_HEADERS.ingredientGTIN,
+      ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientGTIN : format.ALL_HEADERS.finishedProductGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      ingredientRow.set(format.ALL_HEADERS.ingredientName,
+      ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientName : format.ALL_HEADERS.finishedProductName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
     // find latest event
-    const { creationDate, locationId, locationName, locationType } = findSourceLocation(events, data.locations);
-    ingredientRow.set(format.ALL_HEADERS.creationDate, creationDate);
-    ingredientRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
-    ingredientRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
-    ingredientRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
+    const { eventDate, locationId, locationName, locationType } =
+              (direction.upstream ? findSourceLocation : findFinalLocation)(events, data.locations);
+    if (direction.upstream) {
+      ingredientRow.set(format.ALL_HEADERS.creationDate, eventDate);
+      ingredientRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
+      ingredientRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
+      ingredientRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
+    } else if (direction.downstream) {
+      ingredientRow.set(format.ALL_HEADERS.arrivalDate, eventDate);
+      ingredientRow.set(format.ALL_HEADERS.finalLocationID, locationId);
+      ingredientRow.set(format.ALL_HEADERS.finalLocationName, locationName);
+      ingredientRow.set(format.ALL_HEADERS.finalLocationType, locationType);
+    }
 
     rows.push(ingredientRow);
 
     // recurse up tree
-    rows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data));
+    if (direction.upstream) {
+      rows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data, direction));
+    }
+
+    if (direction.downstream) {
+      rows.push(...generateIngredientCSVRows(productRow, trace.output_epcs, data, direction));
+    }
+
   });
 
   return rows;
@@ -312,10 +367,10 @@ function generateIngredientCSVRows(productRow: format.CSVRow,
  * @param events list of events
  * @param locationMap master location data mapping location id to location data
  */
-function findFinalLocation(events, locationMap): { arrivalDate, locationId, locationName, locationType } {
+function findFinalLocation(events, locationMap): { eventDate, locationId, locationName, locationType } {
   if (!events || events.length === 0) {
     return {
-      arrivalDate: null,
+      eventDate: null,
       locationId: null,
       locationName: null,
       locationType: null
@@ -345,7 +400,7 @@ function findFinalLocation(events, locationMap): { arrivalDate, locationId, loca
   ...finalEvent.destination_location_ids].map((location) => { // map location ids to location information
     const locData = locationMap.get(location);
     return {
-      arrivalDate: finalEvent.event_time,
+      eventDate: finalEvent.event_time,
       locationId: location,
       locationName: locData ? locData.party_name : undefined,
       locationType: locData ? locData.party_role_code : undefined
@@ -369,7 +424,7 @@ function findFinalLocation(events, locationMap): { arrivalDate, locationId, loca
 function findSourceLocation(events, locationMap) {
   if (!events || events.length === 0) {
     return {
-      creationDate: null,
+      eventDate: null,
       locationId: null,
       locationName: null,
       locationType: null
@@ -407,7 +462,7 @@ function findSourceLocation(events, locationMap) {
   ...firstEvent.source_location_ids].map((location) => { // map location ids to location information
     const locData = locationMap.get(location);
     return {
-      creationDate: firstEvent.event_time,
+      eventDate: firstEvent.event_time,
       locationId: location,
       locationName: locData ? locData.party_name : undefined,
       locationType: locData ? locData.party_role_code : undefined
