@@ -78,7 +78,7 @@ export async function getIngredientSources(req,
 
   const csv_rows: format.CSVRow[] = [];
 
-  csv_rows.push(...generateProductCSVRows(traceData, masterData, direction));
+  csv_rows.push(...initializeProductCSVRows(traceData, masterData, direction));
 
   return [
     format.INGREDIENT_CSV_HEADERS,
@@ -153,14 +153,14 @@ function processEventInfo(allEventData: any[]): [Map<any, any>, Map<any, any>, a
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateProductCSVRows(productTrace: EPC[], data,
+function initializeProductCSVRows(productTrace: EPC[], data,
   direction: {upstream: boolean, downstream: boolean}
    = { upstream: true, downstream: false }): format.CSVRow[] {
   const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
-    const productRow: format.CSVRow = new format.CSVRow(format.INGREDIENT_CSV_HEADERS);
+    const row: format.CSVRow = new format.CSVRow(format.INGREDIENT_CSV_HEADERS);
 
-    productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductEPC
+    row.set(direction.upstream ? format.ALL_HEADERS.finishedProductEPC
                                       : format.ALL_HEADERS.ingredientEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
@@ -205,9 +205,9 @@ function generateProductCSVRows(productTrace: EPC[], data,
           return (product.org_id === orgId);
         });
       }
-      productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductGTIN : format.ALL_HEADERS.ingredientGTIN,
+      row.set(direction.upstream ? format.ALL_HEADERS.finishedProductGTIN : format.ALL_HEADERS.ingredientGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      productRow.set(direction.upstream ? format.ALL_HEADERS.finishedProductName : format.ALL_HEADERS.ingredientName,
+      row.set(direction.upstream ? format.ALL_HEADERS.finishedProductName : format.ALL_HEADERS.ingredientName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
@@ -215,23 +215,23 @@ function generateProductCSVRows(productTrace: EPC[], data,
     const { eventDate, locationId, locationName, locationType }
                     = (direction.upstream ? findFinalLocation : findSourceLocation)(events, data.locations);
     if (direction.upstream) {
-      productRow.set(format.ALL_HEADERS.arrivalDate, eventDate);
-      productRow.set(format.ALL_HEADERS.finalLocationID, locationId);
-      productRow.set(format.ALL_HEADERS.finalLocationName, locationName);
-      productRow.set(format.ALL_HEADERS.finalLocationType, locationType);
+      row.set(format.ALL_HEADERS.arrivalDate, eventDate);
+      row.set(format.ALL_HEADERS.finalLocationID, locationId);
+      row.set(format.ALL_HEADERS.finalLocationName, locationName);
+      row.set(format.ALL_HEADERS.finalLocationType, locationType);
     } else if (direction.downstream) {
-      productRow.set(format.ALL_HEADERS.creationDate, eventDate);
-      productRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
-      productRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
-      productRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
+      row.set(format.ALL_HEADERS.creationDate, eventDate);
+      row.set(format.ALL_HEADERS.sourceLocationID, locationId);
+      row.set(format.ALL_HEADERS.sourceLocationName, locationName);
+      row.set(format.ALL_HEADERS.sourceLocationType, locationType);
     }
 
     // for each input, create a new CSV row
     const inputRows = [];
     if (direction.upstream) {
-      inputRows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data, direction));
+      inputRows.push(...populateIngredientCSVRows(row, trace.input_epcs, data, direction));
     } else if (direction.downstream) {
-      inputRows.push(...generateIngredientCSVRows(productRow, trace.output_epcs, data, direction));
+      inputRows.push(...populateIngredientCSVRows(row, trace.output_epcs, data, direction));
     }
 
     if (inputRows.length === 0) {
@@ -244,17 +244,17 @@ function generateProductCSVRows(productTrace: EPC[], data,
       } = (direction.upstream ? findSourceLocation : findFinalLocation)(events, data.locations);
 
       if (direction.upstream) {
-        productRow.set(format.ALL_HEADERS.creationDate, eDate);
-        productRow.set(format.ALL_HEADERS.sourceLocationID, locId);
-        productRow.set(format.ALL_HEADERS.sourceLocationName, locName);
-        productRow.set(format.ALL_HEADERS.sourceLocationType, locType);
+        row.set(format.ALL_HEADERS.creationDate, eDate);
+        row.set(format.ALL_HEADERS.sourceLocationID, locId);
+        row.set(format.ALL_HEADERS.sourceLocationName, locName);
+        row.set(format.ALL_HEADERS.sourceLocationType, locType);
       } else if (direction.downstream) {
-        productRow.set(format.ALL_HEADERS.arrivalDate, eDate);
-        productRow.set(format.ALL_HEADERS.finalLocationID, locId);
-        productRow.set(format.ALL_HEADERS.finalLocationName, locName);
-        productRow.set(format.ALL_HEADERS.finalLocationType, locType);
+        row.set(format.ALL_HEADERS.arrivalDate, eDate);
+        row.set(format.ALL_HEADERS.finalLocationID, locId);
+        row.set(format.ALL_HEADERS.finalLocationName, locName);
+        row.set(format.ALL_HEADERS.finalLocationType, locType);
       }
-      rows.push(productRow);
+      rows.push(row);
     } else {
       rows.push(...inputRows);
     }
@@ -270,15 +270,15 @@ function generateProductCSVRows(productTrace: EPC[], data,
  * @param productTrace trace of the product
  * @param data masterdata object
  */
-function generateIngredientCSVRows(productRow: format.CSVRow,
+function populateIngredientCSVRows(productRow: format.CSVRow,
                                    productTrace: EPC[], data,
                                    direction: {upstream: boolean, downstream: boolean}
                                    = { upstream: true, downstream: false }): format.CSVRow[] {
   const rows: format.CSVRow[] = [];
   productTrace.forEach(trace => {
-    const ingredientRow: format.CSVRow = productRow.copy();
+    const row: format.CSVRow = productRow.copy();
 
-    ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientEPC
+    row.set(direction.upstream ? format.ALL_HEADERS.ingredientEPC
                                          : format.ALL_HEADERS.finishedProductEPC, trace.epc_id);
 
     // get event information associated with epc, meanwhile also establish orgId
@@ -323,9 +323,9 @@ function generateIngredientCSVRows(productRow: format.CSVRow,
           return (product.org_id === orgId);
         });
       }
-      ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientGTIN : format.ALL_HEADERS.finishedProductGTIN,
+      row.set(direction.upstream ? format.ALL_HEADERS.ingredientGTIN : format.ALL_HEADERS.finishedProductGTIN,
         (productData && productData.id) || (products[0] && products[0].id));
-      ingredientRow.set(direction.upstream ? format.ALL_HEADERS.ingredientName : format.ALL_HEADERS.finishedProductName,
+      row.set(direction.upstream ? format.ALL_HEADERS.ingredientName : format.ALL_HEADERS.finishedProductName,
         (productData && productData.description) || (products[0] && products[0].description));
     }
 
@@ -333,26 +333,26 @@ function generateIngredientCSVRows(productRow: format.CSVRow,
     const { eventDate, locationId, locationName, locationType } =
               (direction.upstream ? findSourceLocation : findFinalLocation)(events, data.locations);
     if (direction.upstream) {
-      ingredientRow.set(format.ALL_HEADERS.creationDate, eventDate);
-      ingredientRow.set(format.ALL_HEADERS.sourceLocationID, locationId);
-      ingredientRow.set(format.ALL_HEADERS.sourceLocationName, locationName);
-      ingredientRow.set(format.ALL_HEADERS.sourceLocationType, locationType);
+      row.set(format.ALL_HEADERS.creationDate, eventDate);
+      row.set(format.ALL_HEADERS.sourceLocationID, locationId);
+      row.set(format.ALL_HEADERS.sourceLocationName, locationName);
+      row.set(format.ALL_HEADERS.sourceLocationType, locationType);
     } else if (direction.downstream) {
-      ingredientRow.set(format.ALL_HEADERS.arrivalDate, eventDate);
-      ingredientRow.set(format.ALL_HEADERS.finalLocationID, locationId);
-      ingredientRow.set(format.ALL_HEADERS.finalLocationName, locationName);
-      ingredientRow.set(format.ALL_HEADERS.finalLocationType, locationType);
+      row.set(format.ALL_HEADERS.arrivalDate, eventDate);
+      row.set(format.ALL_HEADERS.finalLocationID, locationId);
+      row.set(format.ALL_HEADERS.finalLocationName, locationName);
+      row.set(format.ALL_HEADERS.finalLocationType, locationType);
     }
 
-    rows.push(ingredientRow);
+    rows.push(row);
 
     // recurse up tree
     if (direction.upstream) {
-      rows.push(...generateIngredientCSVRows(productRow, trace.input_epcs, data, direction));
+      rows.push(...populateIngredientCSVRows(productRow, trace.input_epcs, data, direction));
     }
 
     if (direction.downstream) {
-      rows.push(...generateIngredientCSVRows(productRow, trace.output_epcs, data, direction));
+      rows.push(...populateIngredientCSVRows(productRow, trace.output_epcs, data, direction));
     }
 
   });
