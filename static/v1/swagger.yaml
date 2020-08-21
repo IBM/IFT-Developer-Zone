@@ -1,10 +1,9 @@
 openapi: "3.0.0"
 info:
   version: 2.0.0
-  title: IFT Recall Assistant APIs
+  title: IFT Trace API Extensions
   description: |
-    # Authorization to use the IFT Recall Assistant API
-    The IFT Recall Assistant APIs allow callers to determine the impact of a recall, specifying a location where a recall is initiated from, a list of GTINs harvested at that location, and a date range for harvest.
+    The Trace API Extensions is a set of example scenarios showing some use cases of the IBM Trace API. Below are some recall scenarios that allow callers to determine the impact of a recall, specifying a location where a recall is initiated from, a list of GTINs harvested at that location, and a date range for harvest.
 
     Given that information, there are endpoints to determine:
     * EPCs harvested
@@ -12,7 +11,7 @@ info:
     * Purchase orders and Despatch advice IDs associated with shipments of any impacted EPCs
     * EPCs & locations of any ingredients used in the final product(s) searched
 
-    # Authorization to use the IFT Recall Assistant API
+    # Authorization to use the Trace API Extensions
 
     Only authorized users with a <b>registered IBMid</b> can make IBM Food Trust&trade; API calls. If necessary, contact your IBM Food Trust Organization Administrator for authorization to use this API.
 
