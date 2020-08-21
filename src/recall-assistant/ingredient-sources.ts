@@ -31,10 +31,7 @@ export async function getIngredientSources(req,
     return [format.INGREDIENT_CSV_HEADERS, []];
   }
 
-  // TODO: needs to go downstream too
   const traceData = await ift_service.runTrace(req, lotsAndSerials, direction);
-
-  console.log(JSON.stringify(traceData, null, 2));
 
   // process event assets and aggregation assets
   let assets = [];
@@ -48,7 +45,6 @@ export async function getIngredientSources(req,
     // process parent assets
     traceData.forEach(productTrace => {
 
-      // TODO: needs to go into children here instead of just parents
       assets.push(...processParentAssets(productTrace, aggAssetMap, direction));
     });
   } else { return [format.INGREDIENT_CSV_HEADERS, []]; }
@@ -178,7 +174,6 @@ function initializeProductCSVRows(productTrace: EPC[], data,
       return undefined;
     }).filter((el) => !!el);
 
-    // TODO: Requires going into child epcs here too
     // push potential parent epc event data
     trace.parent_epcs.forEach((parent) => {
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
@@ -297,7 +292,6 @@ function populateIngredientCSVRows(productRow: format.CSVRow,
     }).filter((el) => !!el);
 
     // push potential parent epc event data
-    // TODO: based on direction, go towards child epcs too
     trace.parent_epcs.forEach((parent) => {
       events.push(...data.parents[parent.epc_id].map((asset_id) => {
         const eventInfo = data.events.get(asset_id);
