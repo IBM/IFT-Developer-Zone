@@ -101,7 +101,11 @@ export async function getEpcs(req) {
     // Get a list of all unique EPCs referenced in the matching events
     let epcs: string[] = [];
     eventsObj.events.forEach((event) => {
-      epcs = _.union(epcs, event.epcs_ids.filter((epc) => !epc.includes('sscc')));
+      epcs = _.union(epcs, event.epcs_ids.filter((epc) => {
+        // check to make sure it is a valid EPC (lot, serial, or pallet)
+        return !epc.includes('sscc')
+          && RegExp(/(urn:(?:epc|ibm):[^:]*:(?:sgln|lgtin|sgtin|product:(?:lot|serial)|lpn:obj))/gm).test(epc);
+      }));
     });
     return epcs;
   }).catch((err) => {
@@ -190,21 +194,30 @@ export async function getTransactions(req, inputEpcs: string[]) {
 }
 
 export function processResponse(responseList: any[], eventType: string) {
-  let ids: string[] = []; // Get a list of all EPCs listed as outputs on these tranformations or transactionIds
+  let response: any[] = []; // Get a list of all EPCs listed as outputs on these tranformations or transactionIds
   responseList.forEach((responseJSON: any) => {
     responseJSON.events.forEach((event) => {
       if (eventType === 'aggregation') {
-        ids = [...ids, ...event.transaction_ids];
+        // handle transaction events:
+        for (const transaction of event.transaction_ids) {
+          const res = {
+            id: transaction['id'],
+            type: transaction['type'],
+            epc_ids: event.epcs_ids,
+            event_time: event.event_time
+          };
+          response.push(res);
+        }
       } else if (eventType === 'transformation') {
         event.output_quantities.forEach((output) => {
-          ids = [...ids, output.epc_id];
+          response = [...response, output.epc_id];
         });
       }
     });
     // NOTE: Works but might be (ids && ids.length > 0) or even just (ids && ids.length).
     // NOTE: Modified for more clarity
   });
-  return (ids && ids.length > 0) ? _.uniq(ids) : [];
+  return (response && response.length > 0) ? _.uniq(response) : [];
 
 }
 

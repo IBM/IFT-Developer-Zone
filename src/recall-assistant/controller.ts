@@ -2,19 +2,13 @@ import * as express from 'express';
 import * as _ from 'lodash';
 
 import {
-  getEpcs,
-  getTransformOutputEpcs,
-  getTransactions
-} from './ift-service';
+  harvestedEPCs,
+  impactedEPCs,
+  impactedTransactions,
+  ingredientSources
+} from './endpoints';
 
-import {
-  formatEPCtoCSV,
-  formatTransactiontoCSV
-} from './format';
-
-import { getSourceEPCData } from './retailer-actions';
-
-import { getIngredientSources } from './ingredient-sources';
+import { CSVRow } from './format';
 
 // Catch errors that occur in asynchronous code and pass them to Express for processing
 export const catchAsync = fn => (...args) => fn(...args).catch(args[2]); // args[2] is next
@@ -26,15 +20,15 @@ export const getEpcsHandler: express.RequestHandler = catchAsync(async (
   next: express.NextFunction
 ) => {
   // This will get all EPCs harvested according to the input parameters
-  const data = await getEpcs(req);
+  const data = await harvestedEPCs(req);
 
   // handle different data output types
   const format: string = req.query.output as string;
 
   if (!format || format.trim().toUpperCase() === 'CSV') {
-    const [csv_headers, csv_rows] = await formatEPCtoCSV(req, data);
+    const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
     res.status(200).header('Content-Type', 'text/csv');
-    res.header('Content-Disposition', `attachment; filename="impacted_transactions-${Date.now()}.csv"`);
+    res.header('Content-Disposition', `attachment; filename="harvested_epcs-${Date.now()}.csv"`);
 
     writeCSVtoResponse(res, csv_headers, csv_rows);
 
@@ -55,18 +49,15 @@ export const getEpcsWithTransformsHandler: express.RequestHandler = catchAsync(a
   res: express.Response,
   next: express.NextFunction
 ) => {
-  const harvestedEpcs = await getEpcs(req);
-  // In addition to the harvested EPCs, find any products that these were transformed into as
-  // these are also impacted by any recall
-  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
+  const data = await impactedEPCs(req);
 
   // handle different data output types
   const format: string = req.query.output as string;
 
   if (!format || format.trim().toUpperCase() === 'CSV') {
-    const [csv_headers, csv_rows] = await formatEPCtoCSV(req, totalEpcs);
+    const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
     res.status(200).header('Content-Type', 'text/csv');
-    res.header('Content-Disposition', `attachment; filename="impacted_transactions-${Date.now()}.csv"`);
+    res.header('Content-Disposition', `attachment; filename="impacted_epcs-${Date.now()}.csv"`);
 
     writeCSVtoResponse(res, csv_headers, csv_rows);
 
@@ -74,7 +65,7 @@ export const getEpcsWithTransformsHandler: express.RequestHandler = catchAsync(a
     return res;
   }
   if (format.trim().toUpperCase() === 'JSON') {
-    return res.status(200).json(totalEpcs);
+    return res.status(200).json(data);
   }
 
   return res.status(400).json({
@@ -87,17 +78,13 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
   res: express.Response,
   next: express.NextFunction
 ) => {
-  const harvestedEpcs = await getEpcs(req);
-  const totalEpcs = _.union(harvestedEpcs, await getTransformOutputEpcs(req, harvestedEpcs));
-  // From the list of bad EPCs (harvested or produced), find aggregations that reference transactions
-  // (purchase orders and despatch advice documents)
-  const data = await getTransactions(req, totalEpcs);
+  const data = await impactedTransactions(req);
 
   // handle different data output types
   const format: string = req.query.output as string;
 
   if (!format || format.trim().toUpperCase() === 'CSV') {
-    const [csv_headers, csv_rows] = await formatTransactiontoCSV(data);
+    const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
     res.status(200).header('Content-Type', 'text/csv');
     res.header('Content-Disposition', `attachment; filename="impacted_transactions-${Date.now()}.csv"`);
 
@@ -107,7 +94,7 @@ export const getTransactionsHandler: express.RequestHandler = catchAsync(async (
     return res;
   }
   if (format.trim().toUpperCase() === 'JSON') {
-    return res.status(200).json(data.map(el => el.id));
+    return res.status(200).json(data);
   }
 
   return res.status(400).json({
@@ -126,13 +113,13 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
   res: express.Response,
   next: express.NextFunction
 ) => {
-  // This will get all the commissioned input epcs and related data
+  const data = await ingredientSources(req);
 
   // handle different data output types
   const format: string = req.query.output as string;
 
   if (!format || format.trim().toUpperCase() === 'CSV') {
-    const [csv_headers, csv_rows] = await getIngredientSources(req);
+    const [csv_headers, csv_rows] = (data as [string[], CSVRow[]]);
     res.status(200).header('Content-Type', 'text/csv');
     res.header('Content-Disposition', `attachment; filename="ingredient_source-${Date.now()}.csv"`);
 
@@ -142,7 +129,6 @@ export const getIngredientSourcesHandler: express.RequestHandler = catchAsync(as
     return res;
   }
   if (format.trim().toUpperCase() === 'JSON') {
-    const data = await getSourceEPCData(req);
     return res.status(200).json(data);
   }
 
