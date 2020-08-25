@@ -21,7 +21,7 @@ export const getEpcsHandler: express.RequestHandler = catchAsync(async (
   next: express.NextFunction
 ) => {
   // This will get all EPCs harvested according to the input parameters
-  return handler(harvestedEPCs, 'harvested-epcs', req, res);
+  return await handler(harvestedEPCs, 'harvested-epcs', req, res);
 });
 
 export const getEpcsWithTransformsHandler: express.RequestHandler = catchAsync(async (

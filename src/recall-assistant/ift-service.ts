@@ -424,7 +424,7 @@ export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
             || event.asset_id.includes('commission'));
   }));
 
-  epcEventMap.inputs = this.getUpstreamEventsAndEPCs(traceResponse.input_epcs);
+  epcEventMap.inputs.push(...this.getUpstreamEventsAndEPCs(traceResponse.input_epcs));
   epcEventMap.inputs.push(...this.getDownstreamEventsAndEPCs(traceResponse.output_epcs));
 
   return epcEventMap;
@@ -432,9 +432,6 @@ export function getEpcEventsMapFromTrace(traceResponse, parentAssetMap): {} {
 
 // Recursively loop through the EPC tree to get all events
 export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
-  if (!(epcs && epcs.length)) {
-    return [];
-  }
 
   return (!(epcs && epcs.length > 0)) ? [] : epcs.reduce((allEvents, epc) => { // foreach in the list do the following
 
@@ -468,9 +465,6 @@ export function getUpstreamEventsAndEPCs(epcs, parentAssetMap) {
 
 // Recursively loop through the EPC tree to get all events
 export function getDownstreamEventsAndEPCs(epcs) {
-  if (!(epcs && epcs.length)) {
-    return [];
-  }
 
   return (!(epcs && epcs.length > 0)) ? [] : epcs.reduce((allEvents, epc) => { // foreach in the list do the following
 
