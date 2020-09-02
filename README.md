@@ -21,6 +21,9 @@ This returns a list of transaction identifiers (purchase order IDs and despatch 
 ### ingredient-sources
 This returns a list of products with their final locations alongside their ingredients and the source locations for each of the ingredients.  This will make assumptions about the overall flow of products (it will assume a `STORE` is a more likely final location than a `FARM`, and the reverse for source locations).  In CSV format, it will also limit the final/source locations to a single location each, sorted by timestamp and by the assumption described previously.
 
+### product-destinations
+This endpoint will provide a list of ingredients and the source locations alongside the most downstream product they produce (same formatting as `/ingredient-sources`).  This will make assumptions about the overall flow of products (it will assume a `STORE` is a more likely final location than a `FARM`, and the reverse for source locations).  In CSV format, it will also limit the final/source locations to a single location each, sorted by timestamp and by the assumption described previously.
+
 # Usage
 1) Clone the code locally
 2) Nagigate to the top level, and execute:

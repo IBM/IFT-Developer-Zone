@@ -80,6 +80,17 @@ paths:
       responses:
         '200':
           description: OK
+  /product-destinations:
+    get:
+      summary: Return EPCs that were the results of transformations from the searched product
+      parameters:
+        - $ref: '#/components/parameters/productId'
+        - $ref: '#/components/parameters/eventStartTimestamp'
+        - $ref: '#/components/parameters/eventEndTimestamp'
+        - $ref: '#/components/parameters/output'
+      responses:
+        '200':
+          description: OK
 
 components:
   securitySchemes:
